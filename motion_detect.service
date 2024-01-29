@@ -1,0 +1,11 @@
+[Unit]
+Description=starts motion detection
+StartLimitIntervalSec=1
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/
+Restart=on-failure
+RestartSec=5
+User=root
+Group=root
