@@ -1,34 +1,26 @@
-use motion_detector::{camera, motion_detect::{self, gpio::MotionDetector}};
-use std::{thread::{self, JoinHandle}, time};
-use chrono::prelude::*;
-use log::info;
+use axum::{Router, serve, routing::get};
+use tokio;
 
 
-fn monitor_loop(motion_detector: &MotionDetector) {
-    let sleep_duration = time::Duration::from_secs(1);
-    let mut camera_thread: JoinHandle<String>;
-    loop {
-        if motion_detector.sensor_config.sensor_pin.is_high() {
-            let current_time = Utc::now().to_string();
-            info!("Motion detected at {current_time} starting camera");
-            camera_thread = thread::spawn(|| {camera::camera::start_recording(current_time)});
-            let thread_result = camera_thread.join().unwrap_or_default();
-            info!("Camera thread result: {thread_result}");
-        }
-        else {
-            thread::sleep(sleep_duration)
-        }
-    }
+async fn basic_route() -> String {
+    return "test".to_string();
+}
+async fn create_app() -> Router {
+    let app = Router::new().route("/", get(basic_route));
+    app
 }
 
 
-fn main() {
-    let detector_obj = motion_detect::gpio::MotionDetector::new(20);
-    if camera::camera::initialise_camera() {
-        monitor_loop(&detector_obj)
-    }
-    else {
-        info!("Camera failed to initialise");
-        println!("Camera failed to initialise.");
-    }
+#[tokio::main]
+async fn main() {
+    let app = create_app().await;
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    let server = serve(listener, app);
 }
+
+
+// look at why initial pause isnt working, see if it is compatible with streaming, 
+// also consider that stream seems to crash on client disconnect with listen - could require rethinking? though if pause works with signal thats fine,
+// how to test? maybe with rust?
+// always on camera mode for app,
+// 

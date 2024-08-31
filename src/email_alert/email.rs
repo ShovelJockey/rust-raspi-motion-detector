@@ -1,6 +1,5 @@
 use mail_send::{mail_builder, SmtpClientBuilder};
 
-
 fn create_message<'a>(time: String) -> mail_builder::MessageBuilder<'a> {
     let origin = ("Motion Detector", "jamie.hirst10@gmail.com");
     let target = ("Jamie Hirst", "jamie.hirst10@gmail.com");
@@ -9,8 +8,7 @@ fn create_message<'a>(time: String) -> mail_builder::MessageBuilder<'a> {
         .to(target)
         .subject("Motion Detected")
         .text_body(format!("Motion Detected at {time}, recording incident"));
-}   
-
+}
 
 async fn send_mail(time: String) {
     let smtp_client_builder = SmtpClientBuilder::new("smtp.gmail.com", 465);
@@ -21,7 +19,5 @@ async fn send_mail(time: String) {
         .await
         .unwrap();
     let message = create_message(time);
-    smtp_client.send(message)
-                .await
-                .unwrap();
+    smtp_client.send(message).await.unwrap();
 }
