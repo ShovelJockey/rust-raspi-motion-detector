@@ -1,4 +1,4 @@
-use std::process::{Child, Command, Stdio};
+use std::process::{Command, Stdio};
 
 
 pub fn test_initialise_camera() -> bool {
@@ -9,25 +9,38 @@ pub fn test_initialise_camera() -> bool {
     return output.status.success();
 }
 
-pub fn initialise_camera() -> Child {
-    // let command_args = [
-    //     "-t 0",
-    //     "--inline",
-    //     "--initial 'pause'",
-    //     "--signal",
-    //     "-o udp://localhost:8080",
-    // ];
-    let output = Command::new("rpicam-vid")
-        .arg("-t 100 --initial 'pause' --signal --listen -v 0 -o udp://localhost:8080")
+pub fn start_recording(time: String) -> u32 {
+    let output = format!("-o motion_{time}.mp4");
+    let command_args = [
+        "-t 0",
+        output.as_str(),
+    ];
+    let child_process = Command::new("rpicam-vid")
+        .args(command_args)
         .stderr(Stdio::piped())
         .spawn()
         .expect("Expected Camera command to succeed without error.");
-    return output;
+    return child_process.id();
 }
 
-pub fn start_stop_recording(camera_thread_id: &u32) {
+pub fn shutdown_process(camera_process_id: &u32) {
     Command::new("kill")
-        .args(["-SIGUSR1", camera_thread_id.to_string().as_str()])
+        .args(["-SIGUSR2", camera_process_id.to_string().as_str()])
         .output()
         .expect("SIGUSR signal sent to camera thread");
+}
+
+pub fn start_stream() -> u32 {
+    let command_args = [
+        "-t 0",
+        "--inline",
+        "--signal",
+        "-o udp://localhost:8080",
+    ];
+    let child_process = Command::new("rpicam-vid")
+        .args(command_args)
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("Expected Camera command to succeed without error.");
+    return child_process.id();
 }

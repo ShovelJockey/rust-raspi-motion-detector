@@ -3,10 +3,11 @@ use chrono::prelude::*;
 use rppal::gpio::Mode::Output;
 use rppal::gpio::{Gpio, IoPin};
 use std::{
-    process::Child,
+    sync::Mutex,
     thread::{self},
     time,
 };
+use redis;
 
 pub struct SensorConfig {
     pub sensor_pin: IoPin,
@@ -56,27 +57,50 @@ impl MotionDetector {
         is_high
     }
 
-    pub fn monitor_loop(&self) {
-        println!("Starting camera");
-        let camera_thread: Child = camera::camera::initialise_camera();
-        let mut camera_recording = false;
+    pub fn monitor_loop_record(&self) {
+        println!("Starting motion sensor camera in monitor mode.");
         let mut is_motion: bool;
+        let mut is_recording = false;
+        let mut camera_process_id: Option<u32> = None;
         loop {
             is_motion = self.is_motion();
-            if is_motion && !camera_recording {
+            if is_motion && !is_recording {
                 let current_time = Utc::now().to_string();
                 println!("Motion detected at {current_time} starting camera");
-                camera::camera::start_stop_recording(&camera_thread.id());
-                camera_recording = true;
-            } else if is_motion && camera_recording {
+                camera_process_id = Some(camera::camera::start_recording(current_time));
+                is_recording = true;
+            } else if is_motion && is_recording {
                 let current_time = Utc::now().to_string();
                 println!("Motion detected at {current_time} camera already recording");
-            } else if !is_motion && camera_recording {
-                let current_time = Utc::now().to_string();
-                println!("No motion detected at {current_time} stopping camera");
-                camera::camera::start_stop_recording(&camera_thread.id());
-                camera_recording = false;
+            } else if !is_motion && is_recording {
+                if camera_process_id.is_some() {
+                    camera::camera::shutdown_process(&camera_process_id.unwrap());
+                } else {
+                    panic!("Error is_recording evaluates to true but camera process id is none")
+                } 
+                is_recording = false;
             }
         }
     }
+
+    pub fn monitor_loop_stream(&self, mut shutdown_recieved: Mutex<bool>) {
+        println!("Starting camera for ");
+        let camera_process_id = camera::camera::start_stream();
+        let mut is_motion: bool;
+        loop {
+            let should_shutdown = shutdown_recieved.get_mut().unwrap();
+            if *should_shutdown {
+                camera::camera::shutdown_process(&camera_process_id);
+            }
+            is_motion = self.is_motion();
+            if is_motion {
+                let current_time = Utc::now().to_string();
+                println!("Motion detected at {current_time} starting camera");
+            }
+        }
+    }
+
+    // send alert in stream mode if motion detected
+    // dummy func for now that just prints "motion detected"
+    // look at handling for shutdown, need to return id from function and either then in response to client request or stored another way? store in redis maybe?
 }

@@ -14,3 +14,4 @@ mail-send = "0.4.4"
 rppal = "0.19.0"
 tokio = {version = "1.35.1", features = ["full"]}
 tokio-rustls = {version = "0.26.0"}
+redis = "0.26.1"
