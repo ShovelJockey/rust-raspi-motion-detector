@@ -7,7 +7,6 @@ use std::{
     thread::{self},
     time,
 };
-use redis;
 
 pub struct SensorConfig {
     pub sensor_pin: IoPin,
@@ -73,11 +72,10 @@ impl MotionDetector {
                 let current_time = Utc::now().to_string();
                 println!("Motion detected at {current_time} camera already recording");
             } else if !is_motion && is_recording {
-                if camera_process_id.is_some() {
-                    camera::camera::shutdown_process(&camera_process_id.unwrap());
-                } else {
-                    panic!("Error is_recording evaluates to true but camera process id is none")
-                } 
+                if camera_process_id.is_none() {
+                    panic!("Error is_recording evaluates to true but camera process id is none");
+                }
+                camera::camera::shutdown_process(&camera_process_id.unwrap());
                 is_recording = false;
             }
         }
