@@ -3,7 +3,7 @@ use chrono::prelude::*;
 use rppal::gpio::Mode::Output;
 use rppal::gpio::{Gpio, IoPin};
 use std::{
-    sync::Mutex,
+    sync::RwLock,
     thread::{self},
     time,
 };
@@ -12,8 +12,16 @@ pub struct SensorConfig {
     pub sensor_pin: IoPin,
 }
 
+impl Clone for SensorConfig {
+    fn clone(&self) -> Self {
+        let pin_num = self.sensor_pin.pin();
+        SensorConfig::new(pin_num)
+    }
+}
+
 impl SensorConfig {
-    pub fn new(gpio: Gpio, pin_num: u8) -> SensorConfig {
+    pub fn new(pin_num: u8) -> SensorConfig {
+        let gpio = Gpio::new().unwrap();
         let pin = gpio
             .get(pin_num)
             .expect(format!("Pin found with number: {pin_num}").as_str());
@@ -27,14 +35,19 @@ impl SensorConfig {
 
 pub struct MotionDetector {
     pub sensor_config: SensorConfig,
+    pub is_active: RwLock<bool>,
+    pub is_shutdown: RwLock<bool>,
+    is_recording: RwLock<bool>,
 }
 
 impl MotionDetector {
     pub fn new(pin_num: u8) -> MotionDetector {
-        let gpio_interface = Gpio::new().unwrap();
-        let sensor_config = SensorConfig::new(gpio_interface, pin_num);
-
-        return MotionDetector { sensor_config };
+        return MotionDetector { 
+            sensor_config: SensorConfig::new(pin_num),
+            is_active: RwLock::new(false),
+            is_shutdown: RwLock::new(false),
+            is_recording: RwLock::new(false),
+        };
     }
 
     pub fn is_high(&self) -> bool {
@@ -59,15 +72,15 @@ impl MotionDetector {
     pub fn monitor_loop_record(&self) {
         println!("Starting motion sensor camera in monitor mode.");
         let mut is_motion: bool;
-        let mut is_recording = false;
         let mut camera_process_id: Option<u32> = None;
         loop {
             is_motion = self.is_motion();
+            let is_recording = *self.is_recording.read().unwrap();
             if is_motion && !is_recording {
                 let current_time = Utc::now().to_string();
                 println!("Motion detected at {current_time} starting camera");
                 camera_process_id = Some(camera::camera::start_recording(current_time));
-                is_recording = true;
+                *self.is_recording.write().unwrap() = true;
             } else if is_motion && is_recording {
                 let current_time = Utc::now().to_string();
                 println!("Motion detected at {current_time} camera already recording");
@@ -76,17 +89,17 @@ impl MotionDetector {
                     panic!("Error is_recording evaluates to true but camera process id is none");
                 }
                 camera::camera::shutdown_process(&camera_process_id.unwrap());
-                is_recording = false;
+                *self.is_recording.write().unwrap() = false;
             }
         }
     }
 
-    pub fn monitor_loop_stream(&self, mut shutdown_recieved: Mutex<bool>) {
+    pub fn monitor_loop_stream(&self) {
         println!("Starting camera for ");
         let camera_process_id = camera::camera::start_stream();
         let mut is_motion: bool;
         loop {
-            let should_shutdown = shutdown_recieved.get_mut().unwrap();
+            let should_shutdown = self.is_shutdown.read().unwrap();
             if *should_shutdown {
                 camera::camera::shutdown_process(&camera_process_id);
             }
@@ -97,8 +110,4 @@ impl MotionDetector {
             }
         }
     }
-
-    // send alert in stream mode if motion detected
-    // dummy func for now that just prints "motion detected"
-    // look at handling for shutdown, need to return id from function and either then in response to client request or stored another way? store in redis maybe?
 }

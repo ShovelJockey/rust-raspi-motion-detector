@@ -1,12 +1,10 @@
 use std::process::{Command, Stdio};
 
 
-pub fn test_initialise_camera() -> bool {
-    let output = Command::new("rpicam-hello")
+pub fn test_initialise_camera() -> Result<std::process::Output, std::io::Error> {
+    Command::new("rpicam-hello")
         .arg("-t 100")
         .output()
-        .expect("Expected camera hello to complete successfully");
-    return output.status.success();
 }
 
 pub fn start_recording(time: String) -> u32 {

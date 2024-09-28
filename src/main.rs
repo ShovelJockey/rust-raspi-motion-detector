@@ -1,21 +1,19 @@
 use axum::{Router, serve, routing::get};
 use tokio;
 
-
-async fn basic_route() -> String {
-    return "test".to_string();
-}
-async fn create_app() -> Router {
-    let app = Router::new().route("/", get(basic_route));
-    app
-}
+mod camera;
+pub mod motion_detect;
+pub mod app;
 
 
 #[tokio::main]
 async fn main() {
-    let app = create_app().await;
+    camera::camera::test_initialise_camera().expect("Camera initialised successfully");
+    let motion_detector = motion_detect::gpio::MotionDetector::new(8);
+    let mut app = app::app::create_app(motion_detector).await;
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     let server = serve(listener, app);
+    
 }
 
 
