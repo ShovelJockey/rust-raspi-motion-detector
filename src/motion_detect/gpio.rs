@@ -42,10 +42,10 @@ pub struct MotionDetector {
 
 impl MotionDetector {
     pub fn new(pin_num: u8) -> MotionDetector {
-        return MotionDetector { 
+        return MotionDetector {
             sensor_config: SensorConfig::new(pin_num),
-            is_active: RwLock::new(false),
-            is_shutdown: RwLock::new(false),
+            is_active: RwLock::new(false), // make sure is false on shutdown
+            is_shutdown: RwLock::new(false), // make sure set false after shutdown, check thread non existant?
             is_recording: RwLock::new(false),
         };
     }
@@ -73,7 +73,16 @@ impl MotionDetector {
         println!("Starting motion sensor camera in monitor mode.");
         let mut is_motion: bool;
         let mut camera_process_id: Option<u32> = None;
+        *self.is_active.write().unwrap() = true;
         loop {
+            if *self.is_shutdown.read().unwrap() {
+                if *self.is_recording.read().unwrap() {
+                    camera::camera::shutdown_process(&camera_process_id.unwrap());
+                    *self.is_recording.write().unwrap() = false;
+                }
+                *self.is_active.write().unwrap() = false;
+                break;
+            }
             is_motion = self.is_motion();
             let is_recording = *self.is_recording.read().unwrap();
             if is_motion && !is_recording {
@@ -95,18 +104,19 @@ impl MotionDetector {
     }
 
     pub fn monitor_loop_stream(&self) {
-        println!("Starting camera for ");
-        let camera_process_id = camera::camera::start_stream();
+        println!("Starting camera in streaming mode.");
         let mut is_motion: bool;
+        let camera_process_id = camera::camera::start_stream();
+        *self.is_active.write().unwrap() = true;
         loop {
-            let should_shutdown = self.is_shutdown.read().unwrap();
-            if *should_shutdown {
+            if *self.is_shutdown.read().unwrap() {
                 camera::camera::shutdown_process(&camera_process_id);
+                *self.is_active.write().unwrap() = false;
             }
             is_motion = self.is_motion();
             if is_motion {
                 let current_time = Utc::now().to_string();
-                println!("Motion detected at {current_time} starting camera");
+                println!("Motion detected at {current_time}");
             }
         }
     }
