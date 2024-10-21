@@ -80,6 +80,7 @@ pub fn monitor_loop_record(motion_detector: &MotionDetector) {
                 camera::camera::shutdown_process(&camera_process_id.unwrap());
             }
             *motion_detector.is_active.write().unwrap() = false;
+            *motion_detector.is_shutdown.write().unwrap() = false;
             break;
         }
         is_motion = motion_detector.is_motion();
@@ -110,6 +111,7 @@ pub fn monitor_loop_stream(motion_detector: &MotionDetector) {
         if *motion_detector.is_shutdown.read().unwrap() {
             camera::camera::shutdown_process(&camera_process_id);
             *motion_detector.is_active.write().unwrap() = false;
+            *motion_detector.is_shutdown.write().unwrap() = false;
         }
         is_motion = motion_detector.is_motion();
         if is_motion {
