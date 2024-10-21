@@ -1,6 +1,6 @@
 use crate::app::routes;
 use crate::motion_detect::gpio::MotionDetector;
-use axum::{routing::post, serve, Router};
+use axum::{routing::post, Router};
 use std::sync::Arc;
 
 pub async fn create_app(motion_detector: MotionDetector) -> Router {

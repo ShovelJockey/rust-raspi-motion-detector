@@ -1,12 +1,11 @@
-use crate::motion_detect::gpio::MotionDetector;
+use crate::motion_detect::gpio::{monitor_loop_record, monitor_loop_stream, MotionDetector};
 use axum::{
     extract::{Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
 };
 use serde::Deserialize;
-use serde_json::json;
-use std::{fmt::Display, sync::Arc};
+use std::{fmt::Display, sync::Arc, thread::spawn};
 
 #[derive(Deserialize, Debug)]
 enum CameraType {
@@ -41,7 +40,7 @@ pub async fn init_camera(
     recording_type: Query<CameraParam>,
 ) -> Response {
     if *motion_detector.is_active.read().unwrap() {
-        let message = "Cannot shutdown motion detector as it is not active";
+        let message = "Cannot start camera as it is already active";
         return CameraResponse {
             status: StatusCode::CONFLICT,
             message: message.to_string(),
@@ -49,7 +48,7 @@ pub async fn init_camera(
         .into_response();
     };
     if *motion_detector.is_shutdown.read().unwrap() {
-        let message = "Cannot shutdown motion detector as it is not active";
+        let message = "Camera is shutting down cannot activate yet";
         return CameraResponse {
             status: StatusCode::CONFLICT,
             message: message.to_string(),
@@ -58,10 +57,10 @@ pub async fn init_camera(
     };
     match recording_type.camera_type {
         CameraType::Record => {
-            motion_detector.monitor_loop_record();
+            spawn(move || monitor_loop_record(&motion_detector));
         }
         CameraType::Stream => {
-            motion_detector.monitor_loop_stream();
+            spawn(move || monitor_loop_stream(&motion_detector));
         }
     }
     let message = format!("Camera started in {}", recording_type.camera_type);

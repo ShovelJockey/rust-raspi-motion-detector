@@ -1,4 +1,4 @@
-use axum::{routing::get, serve, Router};
+use axum::serve;
 use tokio;
 
 pub mod app;
@@ -9,13 +9,7 @@ pub mod motion_detect;
 async fn main() {
     camera::camera::test_initialise_camera().expect("Camera initialised successfully");
     let motion_detector = motion_detect::gpio::MotionDetector::new(8);
-    let mut app = app::app::create_app(motion_detector).await;
+    let app = app::app::create_app(motion_detector).await;
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    let server = serve(listener, app);
+    serve(listener, app).await.unwrap();
 }
-
-// look at why initial pause isnt working, see if it is compatible with streaming,
-// also consider that stream seems to crash on client disconnect with listen - could require rethinking? though if pause works with signal thats fine,
-// how to test? maybe with rust?
-// always on camera mode for app,
-//
