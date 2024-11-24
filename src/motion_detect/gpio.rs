@@ -1,6 +1,6 @@
 use crate::camera;
 use chrono::prelude::*;
-use rppal::gpio::Mode::Output;
+use rppal::gpio::Mode::Input;
 use rppal::gpio::{Gpio, IoPin};
 use std::{
     sync::RwLock,
@@ -25,7 +25,7 @@ impl SensorConfig {
         let pin = gpio
             .get(pin_num)
             .expect(format!("Pin found with number: {pin_num}").as_str());
-        let output_pin = pin.into_io(Output);
+        let output_pin = pin.into_io(Input);
 
         return SensorConfig {
             sensor_pin: output_pin,
@@ -85,19 +85,20 @@ pub fn monitor_loop_record(motion_detector: &MotionDetector) {
         }
         is_motion = motion_detector.is_motion();
         if is_motion && !is_recording {
-            let current_time = Utc::now().to_string();
-            println!("Motion detected at {current_time} starting camera");
-            camera_process_id = Some(camera::camera::start_recording(current_time));
+            println!("Motion detected starting camera");
+            camera_process_id = Some(camera::camera::start_recording());
             is_recording = true;
+            thread::sleep(time::Duration::from_secs(5));
         } else if is_motion && is_recording {
-            let current_time = Utc::now().to_string();
-            println!("Motion detected at {current_time} camera already recording");
+            println!("Motion detected camera already recording");
+            thread::sleep(time::Duration::from_secs(1));
         } else if !is_motion && is_recording {
             if camera_process_id.is_none() {
                 panic!("Error is_recording evaluates to true but camera process id is none");
             }
             camera::camera::shutdown_process(&camera_process_id.unwrap());
             is_recording = false;
+            thread::sleep(time::Duration::from_secs_f32(0.5));
         }
     }
 }
