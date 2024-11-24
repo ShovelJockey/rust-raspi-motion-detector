@@ -8,7 +8,6 @@ pub fn start_recording() -> u32 {
     let start = SystemTime::now();
     let time = start.duration_since(UNIX_EPOCH).unwrap();
     let output = format!("-o motion_{time:?}.mp4");
-    println!("{output}");
     let command_args = ["-t 0", "--signal", output.as_str()];
     let child_process = Command::new("rpicam-vid")
         .args(command_args)
