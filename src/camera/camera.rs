@@ -1,4 +1,4 @@
-use std::{process::{Command, Stdio}, time::{SystemTime, UNIX_EPOCH}};
+use std::{process::{Command, Stdio}, time::{SystemTime, UNIX_EPOCH}, env::var};
 
 pub fn test_initialise_camera() -> Result<std::process::Output, std::io::Error> {
     Command::new("rpicam-hello").arg("-t 100").output()
@@ -7,9 +7,10 @@ pub fn test_initialise_camera() -> Result<std::process::Output, std::io::Error> 
 pub fn start_recording() -> u32 {
     let start = SystemTime::now();
     let time = start.duration_since(UNIX_EPOCH).unwrap().as_secs();
-    let output = format!("-o /home/jamie/detector_videos/motion_{time:?}.mp4");
+    let save_path = var("VIDEO_SAVE_PATH").unwrap_or("/home".to_string());
+    let output = format!("{save_path}/motion_{time:?}.mp4");
     println!("save arg: {output}");
-    let command_args = ["-t 0", "--signal", output.as_str()];
+    let command_args = ["-t 0", "--signal", "-o", output.as_str()];
     let child_process = Command::new("rpicam-vid")
         .args(command_args)
         .stdout(Stdio::null())

@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 axum = "0.7.5"
 chrono = "0.4.31"
+dotenvy = "0.15.7"
 libc = "0.2.155"
 log = "0.4.20"
 mail-send = "0.4.4"
