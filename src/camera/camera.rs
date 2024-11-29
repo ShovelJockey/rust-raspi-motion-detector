@@ -6,12 +6,14 @@ pub fn test_initialise_camera() -> Result<std::process::Output, std::io::Error> 
 
 pub fn start_recording() -> u32 {
     let start = SystemTime::now();
-    let time = start.duration_since(UNIX_EPOCH).unwrap();
-    let output = format!("-o motion_{time:?}.mp4");
+    let time = start.duration_since(UNIX_EPOCH).unwrap().as_secs();
+    let output = format!("-o /home/jamie/detector_videos/motion_{time:?}.mp4");
+    println!("save arg: {output}");
     let command_args = ["-t 0", "--signal", output.as_str()];
     let child_process = Command::new("rpicam-vid")
         .args(command_args)
-        .stderr(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
         .spawn()
         .expect("Expected Camera command to succeed without error.");
     return child_process.id();

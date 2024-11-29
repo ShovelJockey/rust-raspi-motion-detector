@@ -76,7 +76,9 @@ pub fn monitor_loop_record(motion_detector: &MotionDetector) {
     *motion_detector.is_active.write().unwrap() = true;
     loop {
         if *motion_detector.is_shutdown.read().unwrap() {
+            println!("shutdown ordered");
             if is_recording {
+                println!("ending current recording");
                 camera::camera::shutdown_process(&camera_process_id.unwrap());
             }
             *motion_detector.is_active.write().unwrap() = false;
@@ -93,6 +95,7 @@ pub fn monitor_loop_record(motion_detector: &MotionDetector) {
             println!("Motion detected camera already recording");
             thread::sleep(time::Duration::from_secs(1));
         } else if !is_motion && is_recording {
+            println!("No motion detected stopping recording");
             if camera_process_id.is_none() {
                 panic!("Error is_recording evaluates to true but camera process id is none");
             }
