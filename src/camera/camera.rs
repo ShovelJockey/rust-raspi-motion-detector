@@ -1,4 +1,8 @@
-use std::{process::{Command, Stdio}, time::{SystemTime, UNIX_EPOCH}, env::var};
+use std::{
+    env::var,
+    process::{Command, Stdio},
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 pub fn test_initialise_camera() -> Result<std::process::Output, std::io::Error> {
     Command::new("rpicam-hello").arg("-t 100").output()

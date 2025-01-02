@@ -1,6 +1,6 @@
 use axum::serve;
-use tokio;
 use dotenvy::dotenv;
+use tokio;
 
 pub mod app;
 mod camera;
@@ -14,5 +14,4 @@ async fn main() {
     let app = app::app::create_app(motion_detector).await;
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     serve(listener, app).await.unwrap();
-    
 }
