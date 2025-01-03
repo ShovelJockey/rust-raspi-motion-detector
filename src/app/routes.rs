@@ -1,11 +1,15 @@
 use crate::motion_detect::gpio::{monitor_loop_record, monitor_loop_stream, MotionDetector};
+use crate::app::file_stream::FileStream;
 use axum::{
     extract::{Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
 };
+use tokio::fs::File;
+use tokio_util::io::ReaderStream;
 use serde::Deserialize;
-use std::{fmt::Display, sync::Arc, thread::spawn};
+use std::{fmt::Display, sync::Arc, thread::spawn, env::var};
+
 
 #[derive(Deserialize, Debug)]
 enum CameraType {
@@ -33,6 +37,11 @@ impl IntoResponse for CameraResponse {
     fn into_response(self) -> Response {
         return (self.status, self.message).into_response();
     }
+}
+
+#[derive(Deserialize)]
+pub struct FileName {
+    filename: String
 }
 
 pub async fn init_camera(
@@ -94,4 +103,11 @@ pub async fn shutdown_device(motion_detector: State<Arc<MotionDetector>>) -> Res
         message: message.to_string(),
     }
     .into_response();
+}
+
+pub async fn stream(file_name: Query<FileName>) -> Response {
+    let file_name = &file_name.filename;
+    let file_dir = var("VIDEO_SAVE_PATH").unwrap_or("/home".to_string());
+    let formated_path = format!("{file_dir}/{file_name}");
+    FileStream::<ReaderStream<File>>::from_path(formated_path).await.map_err(|e| (StatusCode::NOT_FOUND, format!("File not found: {e}"))).into_response()
 }
