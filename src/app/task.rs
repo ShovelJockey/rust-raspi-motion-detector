@@ -2,8 +2,9 @@ use std::{
     sync::{mpsc, Arc, Mutex},
     thread,
 };
+use axum::{response::Response, BoxError};
 
-type Job = Box<dyn FnOnce() + Send + 'static>;
+type Job = Box<dyn Send + 'static + FnOnce() -> Result<Response, BoxError>>;
 
 pub struct ThreadPool {
     threads: Vec<ThreadWorker>,
@@ -28,7 +29,7 @@ impl ThreadPool {
 
     pub fn execute<F>(&self, f: F)
     where
-        F: FnOnce() + Send + 'static,
+        F: Send + 'static + FnOnce() -> Result<Response, BoxError>,
     {
         let job = Box::new(f);
 
@@ -53,17 +54,21 @@ impl Drop for ThreadPool {
 struct ThreadWorker {
     id: usize,
     thread: Option<thread::JoinHandle<()>>,
+    result: Arc<Mutex<TaskResult>>
 }
 
 impl ThreadWorker {
     fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> ThreadWorker {
+        let result = Arc::new(Mutex::new(TaskResult::new(id)));
+        let thread_result = result.clone();
         let thread = Some(thread::spawn(move || loop {
             let message = receiver.lock().unwrap().recv();
 
             match message {
                 Ok(job) => {
                     println!("Worker {id} recieved a new job executing");
-                    job();
+                    let mut task_result = thread_result.lock().unwrap();
+                    task_result.capture_result(job());
                 }
                 Err(_) => {
                     println!("Worker {id} disconnected; shutting down.");
@@ -72,6 +77,32 @@ impl ThreadWorker {
             }
         }));
 
-        ThreadWorker { id, thread }
+        ThreadWorker { id, thread, result }
+    }
+}
+
+struct TaskResult {
+    id: usize,
+    result: Option<Response>
+}
+
+impl TaskResult {
+    fn new(id: usize) -> TaskResult {
+        TaskResult { id, result: None }
+    }
+
+    fn capture_result(&mut self, result: Result<Response, BoxError>) {
+        match result {
+            Ok(response) => {
+                self.result = Some(response)
+            },
+            Err(error) => {
+                println!("Error in task: {}, error: {}", self.id, error)
+            }
+        }
+    }
+
+    fn retrieve_result(&mut self) -> Option<Response> {
+        self.result.take()
     }
 }
