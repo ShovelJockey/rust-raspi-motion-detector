@@ -1,15 +1,23 @@
+use super::file_stream::FileStream;
+use super::task::ThreadPool;
 use crate::motion_detect::gpio::{monitor_loop_record, monitor_loop_stream, MotionDetector};
-use crate::app::file_stream::FileStream;
 use axum::{
     extract::{Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
 };
+use glob::glob;
+use serde::Deserialize;
+use std::{
+    env::var,
+    fmt::Display,
+    result::Result,
+    sync::Arc,
+    thread::spawn,
+    time::{Duration, UNIX_EPOCH},
+};
 use tokio::fs::File;
 use tokio_util::io::ReaderStream;
-use serde::Deserialize;
-use std::{fmt::Display, sync::Arc, thread::spawn, env::var};
-
 
 #[derive(Deserialize, Debug)]
 enum CameraType {
@@ -41,7 +49,7 @@ impl IntoResponse for CameraResponse {
 
 #[derive(Deserialize)]
 pub struct FileName {
-    filename: String
+    filename: String,
 }
 
 pub async fn init_camera(
@@ -109,5 +117,57 @@ pub async fn stream(file_name: Query<FileName>) -> Response {
     let file_name = &file_name.filename;
     let file_dir = var("VIDEO_SAVE_PATH").unwrap_or("/home".to_string());
     let formated_path = format!("{file_dir}/{file_name}");
-    FileStream::<ReaderStream<File>>::from_path(formated_path).await.map_err(|e| (StatusCode::NOT_FOUND, format!("File not found: {e}"))).into_response()
+    FileStream::<ReaderStream<File>>::from_path(formated_path)
+        .await
+        .map_err(|e| (StatusCode::NOT_FOUND, format!("File not found: {e}")))
+        .into_response()
+}
+
+pub async fn prepare_stream(file_name: Query<FileName>) -> Response {
+    let file_name = &file_name.filename;
+    let file_dir = var("VIDEO_SAVE_PATH").unwrap_or("/home".to_string());
+    let formated_path = format!("{file_dir}/{file_name}");
+    FileStream::<ReaderStream<File>>::from_path(formated_path)
+        .await
+        .map_err(|e| (StatusCode::NOT_FOUND, format!("File not found: {e}")))
+        .into_response()
+}
+
+pub async fn start_download(
+    thread_pool: State<Arc<ThreadPool>>,
+    last_download: Query<u64>,
+) -> Response {
+    let file_dir = var("VIDEO_SAVE_PATH").unwrap_or("/home".to_string());
+    let pattern = format!("{file_dir}/*.mp4");
+    let time_delta = UNIX_EPOCH + Duration::from_secs(last_download.0);
+    // handle possible errors here return bad resp
+    let paths = match glob(&pattern) {
+        Ok(paths) => paths,
+        Err(err) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Error encountered trying to find videos, {err}"),
+            )
+                .into_response();
+        }
+    };
+    for file in paths.filter_map(Result::ok) {
+        let file_created = file.metadata().unwrap().created().unwrap();
+        if file_created >= time_delta {
+            thread_pool.queue_file(file).await;
+        }
+    }
+    StatusCode::OK.into_response()
+}
+
+pub async fn download(thread_pool: State<Arc<ThreadPool>>) -> Response {
+    let (task_running, stream) = thread_pool.get_result().await;
+    if !task_running {
+        return (
+            StatusCode::BAD_REQUEST,
+            "No task is currently running and no results are still pending download.",
+        )
+            .into_response();
+    }
+    stream.unwrap().into_response()
 }
