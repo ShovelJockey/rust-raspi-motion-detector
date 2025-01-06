@@ -12,7 +12,7 @@ pub async fn create_app(motion_detector: MotionDetector) -> Router {
         .route("/start_cam", post(routes::init_camera))
         .route("/shutdown", post(routes::shutdown_device))
         .with_state(Arc::new(motion_detector))
-        .route("start_download", post(routes::start_download))
+        .route("/start_download", post(routes::start_download))
         .route("/download", get(routes::download))
         .with_state(Arc::new(thread_pool.await))
         .route("/file", get(routes::stream));
