@@ -1,51 +1,76 @@
+use super::file_stream::FileStream;
 use std::{
-    sync::{mpsc, Arc, Mutex},
+    path::PathBuf,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
     thread,
+    time::Duration,
 };
-use axum::{response::Response, BoxError};
-
-type Job = Box<dyn Send + 'static + FnOnce() -> Result<Response, BoxError>>;
+use tokio::fs::File;
+use tokio_util::io::ReaderStream;
 
 pub struct ThreadPool {
     threads: Vec<ThreadWorker>,
-    sender: Option<mpsc::Sender<Job>>,
+    file_queue: Arc<Mutex<Vec<PathBuf>>>,
+    result_queue: Arc<Mutex<Vec<FileStream<ReaderStream<File>>>>>,
 }
 
 impl ThreadPool {
-    pub fn new(thread_num: usize) -> ThreadPool {
+    pub async fn new(thread_num: usize) -> ThreadPool {
         assert!(thread_num > 0);
 
         let mut threads = Vec::with_capacity(thread_num);
-        let (sender, receiver) = mpsc::channel();
-        let receiver = Arc::new(Mutex::new(receiver));
+        let file_queue = Arc::new(Mutex::new(Vec::new()));
+        let result_queue = Arc::new(Mutex::new(Vec::new()));
         for id in 0..thread_num {
-            threads.push(ThreadWorker::new(id, Arc::clone(&receiver)))
+            threads.push(
+                ThreadWorker::new(id, Arc::clone(&file_queue), Arc::clone(&result_queue)).await,
+            )
         }
+
         ThreadPool {
             threads,
-            sender: Some(sender),
+            file_queue,
+            result_queue,
         }
     }
 
-    pub fn execute<F>(&self, f: F)
-    where
-        F: Send + 'static + FnOnce() -> Result<Response, BoxError>,
-    {
-        let job = Box::new(f);
+    pub async fn queue_file(&self, file: PathBuf) {
+        self.file_queue.lock().unwrap().push(file);
+    }
 
-        self.sender.as_ref().unwrap().send(job).unwrap();
+    pub async fn tasks_running(&self) -> bool {
+        self.threads
+            .iter()
+            .any(|thread| thread.running_task.load(Ordering::Relaxed))
+    }
+
+    pub async fn get_result(&self) -> (bool, Option<FileStream<ReaderStream<tokio::fs::File>>>) {
+        let file_queue_running = !self.file_queue.lock().unwrap().is_empty();
+        let result_pop = self.result_queue.lock().unwrap().pop();
+        match result_pop {
+            Some(file_stream) => {
+                return (true, Some(file_stream));
+            }
+            None => {
+                if file_queue_running | self.tasks_running().await {
+                    return (true, None);
+                }
+                return (false, None);
+            }
+        }
     }
 }
 
 impl Drop for ThreadPool {
     fn drop(&mut self) {
-        drop(self.sender.take());
-
         for worker in &mut self.threads {
             println!("Shutting down worker: {}", worker.id);
 
             if let Some(thread) = worker.thread.take() {
-                thread.join().unwrap();
+                thread.abort();
             }
         }
     }
@@ -53,56 +78,60 @@ impl Drop for ThreadPool {
 
 struct ThreadWorker {
     id: usize,
-    thread: Option<thread::JoinHandle<()>>,
-    result: Arc<Mutex<TaskResult>>
+    thread: Option<tokio::task::JoinHandle<()>>,
+    running_task: Arc<AtomicBool>,
 }
 
 impl ThreadWorker {
-    fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> ThreadWorker {
-        let result = Arc::new(Mutex::new(TaskResult::new(id)));
-        let thread_result = result.clone();
-        let thread = Some(thread::spawn(move || loop {
-            let message = receiver.lock().unwrap().recv();
+    async fn new(
+        id: usize,
+        file_queue: Arc<Mutex<Vec<PathBuf>>>,
+        result_queue: Arc<Mutex<Vec<FileStream<ReaderStream<File>>>>>,
+    ) -> ThreadWorker {
+        // have thread none, init thread properly with self ref? or just arc clone here?
+        let running_task = Arc::new(AtomicBool::new(false));
+        let thread_running_task = running_task.clone();
+        let thread = Some(tokio::spawn(async move {
+            loop {
+                // look for new items in file queue to process
+                let queue_pop = match file_queue.lock() {
+                    Ok(mut queue) => queue.pop(),
+                    Err(error) => {
+                        println!("Error accessing Mutex file queue for threadworker: {id}, error: {error}");
+                        break;
+                    }
+                };
 
-            match message {
-                Ok(job) => {
-                    println!("Worker {id} recieved a new job executing");
-                    let mut task_result = thread_result.lock().unwrap();
-                    task_result.capture_result(job());
-                }
-                Err(_) => {
-                    println!("Worker {id} disconnected; shutting down.");
-                    break;
+                let file_stream = match queue_pop {
+                    Some(file_obj) => {
+                        thread_running_task.store(true, Ordering::Relaxed);
+                        FileStream::<ReaderStream<File>>::from_path(file_obj).await
+                    }
+                    None => {
+                        println!("File queue empty for threadworker:");
+                        thread::sleep(Duration::from_secs_f32(0.5));
+                        continue;
+                    }
+                };
+
+                match file_stream {
+                    Ok(stream) => {
+                        println!("Worker {id} finished preparing stream.");
+                        result_queue.lock().unwrap().push(stream);
+                        thread_running_task.store(false, Ordering::Relaxed);
+                    }
+                    Err(_) => {
+                        println!("Worker {id} encountered error building stream.");
+                        break;
+                    }
                 }
             }
         }));
 
-        ThreadWorker { id, thread, result }
-    }
-}
-
-struct TaskResult {
-    id: usize,
-    result: Option<Response>
-}
-
-impl TaskResult {
-    fn new(id: usize) -> TaskResult {
-        TaskResult { id, result: None }
-    }
-
-    fn capture_result(&mut self, result: Result<Response, BoxError>) {
-        match result {
-            Ok(response) => {
-                self.result = Some(response)
-            },
-            Err(error) => {
-                println!("Error in task: {}, error: {}", self.id, error)
-            }
+        ThreadWorker {
+            id,
+            thread,
+            running_task,
         }
-    }
-
-    fn retrieve_result(&mut self) -> Option<Response> {
-        self.result.take()
     }
 }

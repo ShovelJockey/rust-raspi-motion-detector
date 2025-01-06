@@ -1,15 +1,14 @@
 use axum::{
     body,
+    http::{header, StatusCode},
     response::{IntoResponse, Response},
     BoxError,
-    http::{StatusCode, header},
 };
-use tokio::fs::File;
-use tokio_util::io::ReaderStream;
 use bytes::Bytes;
 use futures_util::TryStream;
 use std::{io, path::Path};
-
+use tokio::fs::File;
+use tokio_util::io::ReaderStream;
 
 #[derive(Debug)]
 pub struct FileStream<S> {
@@ -34,7 +33,6 @@ where
             content_size: None,
         }
     }
-
 
     pub async fn from_path(path: impl AsRef<Path>) -> io::Result<FileStream<ReaderStream<File>>> {
         let file = File::open(&path).await?;
