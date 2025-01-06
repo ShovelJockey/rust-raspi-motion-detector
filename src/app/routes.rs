@@ -123,16 +123,6 @@ pub async fn stream(file_name: Query<FileName>) -> Response {
         .into_response()
 }
 
-pub async fn prepare_stream(file_name: Query<FileName>) -> Response {
-    let file_name = &file_name.filename;
-    let file_dir = var("VIDEO_SAVE_PATH").unwrap_or("/home".to_string());
-    let formated_path = format!("{file_dir}/{file_name}");
-    FileStream::<ReaderStream<File>>::from_path(formated_path)
-        .await
-        .map_err(|e| (StatusCode::NOT_FOUND, format!("File not found: {e}")))
-        .into_response()
-}
-
 pub async fn start_download(
     thread_pool: State<Arc<ThreadPool>>,
     last_download: Query<u64>,
