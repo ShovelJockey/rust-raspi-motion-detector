@@ -5,10 +5,9 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex,
     },
-    thread,
     time::Duration,
 };
-use tokio::fs::File;
+use tokio::{fs::File, time::sleep};
 use tokio_util::io::ReaderStream;
 
 pub struct ThreadPool {
@@ -108,8 +107,7 @@ impl ThreadWorker {
                         FileStream::<ReaderStream<File>>::from_path(file_obj).await
                     }
                     None => {
-                        println!("File queue empty for threadworker:");
-                        thread::sleep(Duration::from_secs_f32(0.5));
+                        sleep(Duration::from_secs_f32(0.5)).await;
                         continue;
                     }
                 };
