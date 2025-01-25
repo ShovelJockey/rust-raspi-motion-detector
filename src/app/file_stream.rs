@@ -43,7 +43,7 @@ where
             content_size = Some(metadata.len());
         }
 
-        if let Some(file_name_os) = path.as_ref().file_name() {
+        if let Some(file_name_os) = path.as_ref().file_stem() {
             if let Some(file_name_str) = file_name_os.to_str() {
                 file_name = Some(file_name_str.to_owned());
             }
