@@ -143,7 +143,9 @@ pub async fn start_download(
     };
     for file in paths.filter_map(Result::ok) {
         let file_created = file.metadata().unwrap().created().unwrap();
+        println!("found file {}", &file.display());
         if file_created >= time_delta {
+            println!("adding file to queue");
             thread_pool.queue_file(file).await;
         }
     }

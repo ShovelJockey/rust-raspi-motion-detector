@@ -13,5 +13,6 @@ async fn main() {
     let motion_detector = motion_detect::gpio::MotionDetector::new(4);
     let app = app::app::create_app(motion_detector).await;
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    println!("started");
     serve(listener, app).await.unwrap();
 }

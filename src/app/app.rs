@@ -7,14 +7,14 @@ use axum::{
 use std::sync::Arc;
 
 pub async fn create_app(motion_detector: MotionDetector) -> Router {
-    let thread_pool = ThreadPool::new(20);
+    let thread_pool = ThreadPool::new(20).await;
     let app = Router::new()
         .route("/start_cam", post(routes::init_camera))
         .route("/shutdown", post(routes::shutdown_device))
         .with_state(Arc::new(motion_detector))
         .route("/start_download", post(routes::start_download))
         .route("/download", get(routes::download))
-        .with_state(Arc::new(thread_pool.await))
+        .with_state(Arc::new(thread_pool))
         .route("/file", get(routes::stream));
     app
 }
