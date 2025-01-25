@@ -43,7 +43,7 @@ where
             content_size = Some(metadata.len());
         }
 
-        if let Some(file_name_os) = path.as_ref().file_stem() {
+        if let Some(file_name_os) = path.as_ref().file_name() {
             if let Some(file_name_str) = file_name_os.to_str() {
                 file_name = Some(file_name_str.to_owned());
             }
@@ -81,6 +81,10 @@ where
                 header::CONTENT_DISPOSITION,
                 format!("attachment; filename=\"{file_name}\""),
             );
+            let file_split: Vec<&str> = file_name.split(".").collect();
+            if let Some(file_stem) = file_split.get(0) {
+                resp = resp.header(header::HeaderName::from_static("file_stem"), header::HeaderValue::from_str(file_stem).unwrap());
+            }
         }
 
         if let Some(content_size) = self.content_size {
