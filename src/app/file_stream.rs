@@ -83,7 +83,10 @@ where
             );
             let file_split: Vec<&str> = file_name.split(".").collect();
             if let Some(file_stem) = file_split.get(0) {
-                resp = resp.header(header::HeaderName::from_static("file_stem"), header::HeaderValue::from_str(file_stem).unwrap());
+                resp = resp.header(
+                    header::HeaderName::from_static("file_stem"),
+                    header::HeaderValue::from_str(file_stem).unwrap(),
+                );
             }
         }
 

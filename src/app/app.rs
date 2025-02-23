@@ -15,6 +15,7 @@ pub async fn create_app(motion_detector: MotionDetector) -> Router {
         .route("/start_download", post(routes::start_download))
         .route("/download", get(routes::download))
         .with_state(Arc::new(thread_pool))
-        .route("/file", get(routes::stream));
+        .route("/file", get(routes::stream))
+        .route("/video_data", get(routes::get_all_videos_data));
     app
 }

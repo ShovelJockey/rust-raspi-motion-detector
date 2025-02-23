@@ -6,15 +6,19 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
+use chrono::{offset::Utc, DateTime};
+use ffmpeg_next::{ffi::AV_TIME_BASE, format::input};
 use glob::glob;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use serde_json::to_string;
 use std::{
     env::var,
     fmt::Display,
+    path::Path,
     result::Result,
     sync::Arc,
     thread::spawn,
-    time::{Duration, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tokio::fs::File;
 use tokio_util::io::ReaderStream;
@@ -50,6 +54,25 @@ impl IntoResponse for CameraResponse {
 #[derive(Deserialize)]
 pub struct FileName {
     filename: String,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct VideoData {
+    video_created: String,
+    video_duration: f64,
+}
+
+impl VideoData {
+    pub fn new(created: SystemTime, video_path: &Path) -> Self {
+        let duration = input(video_path).unwrap().duration() as f64 / AV_TIME_BASE as f64;
+        let datetime: DateTime<Utc> = created.into();
+        let formated_date = datetime.format("%d/%m/%Y %T").to_string();
+
+        return VideoData {
+            video_created: formated_date,
+            video_duration: duration,
+        };
+    }
 }
 
 pub async fn init_camera(
@@ -121,6 +144,45 @@ pub async fn stream(file_name: Query<FileName>) -> Response {
         .await
         .map_err(|e| (StatusCode::NOT_FOUND, format!("File not found: {e}")))
         .into_response()
+}
+
+pub async fn get_all_videos_data(videos_since: Query<Option<u64>>) -> Response {
+    let file_dir = var("VIDEO_SAVE_PATH").unwrap_or("/home".to_string());
+    let pattern = format!("{file_dir}/*.mp4");
+    let videos_delta = match videos_since.0 {
+        Some(time) => UNIX_EPOCH + Duration::from_secs(time),
+        None => UNIX_EPOCH + Duration::from_secs(0),
+    };
+
+    match ffmpeg_next::init() {
+        Ok(()) => {}
+        Err(err) => {
+            println!("Encountered error: {err} trying to init ffmpeg");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+
+    let paths = match glob(&pattern) {
+        Ok(paths) => paths,
+        Err(err) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Error encountered trying to find videos, {err}"),
+            )
+                .into_response();
+        }
+    };
+
+    let mut video_names = Vec::new();
+    for file in paths.filter_map(Result::ok) {
+        let file_created = file.metadata().unwrap().created().unwrap();
+        println!("found file {}", &file.display());
+        if file_created >= videos_delta {
+            let video_data = VideoData::new(file_created, file.as_path());
+            video_names.push(video_data);
+        }
+    }
+    return (StatusCode::OK, to_string(&video_names).unwrap()).into_response();
 }
 
 pub async fn start_download(
