@@ -7,9 +7,9 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use chrono::{offset::Utc, DateTime};
-use http::{HeaderMap, header};
 use ffmpeg_next::{ffi::AV_TIME_BASE, format::input};
 use glob::glob;
+use http::{header, HeaderMap};
 use serde::{Deserialize, Serialize};
 use serde_json::to_string;
 use std::{
@@ -171,8 +171,7 @@ pub async fn stream(file_name: Query<FileName>, headers: HeaderMap) -> Response 
         .into_response()
 }
 
-pub async fn get_all_videos_data(
-    // videos_since: Query<u64>
+pub async fn get_all_videos_data(// videos_since: Query<u64>
 ) -> Response {
     let file_dir = var("VIDEO_SAVE_PATH").unwrap_or("/home".to_string());
     let pattern = format!("{file_dir}/*.mp4");

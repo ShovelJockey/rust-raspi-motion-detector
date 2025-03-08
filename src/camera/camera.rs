@@ -14,7 +14,17 @@ pub fn start_recording() -> u32 {
     let save_path = var("VIDEO_SAVE_PATH").unwrap_or("/home".to_string());
     let output = format!("{save_path}/motion_{time:?}.mp4");
     println!("save arg: {output}");
-    let rpicam_args = ["-t", "0", "--signal", "-codec", "libav", "--libav-format", "mpegts", "-o", "-"];
+    let rpicam_args = [
+        "-t",
+        "0",
+        "--signal",
+        "-codec",
+        "libav",
+        "--libav-format",
+        "mpegts",
+        "-o",
+        "-",
+    ];
     let camera_process = Command::new("rpicam-vid")
         .args(rpicam_args)
         .stdout(Stdio::piped())
@@ -23,11 +33,15 @@ pub fn start_recording() -> u32 {
         .expect("Expected Camera command to succeed without error.");
     let camera_process_id = camera_process.id();
     let ffmpeg_args = [
-        "-f", "mpegts", 
-        "-i", "-", 
-        "-movflags", "faststart", 
-        "-f", "mp4", 
-        output.as_str()
+        "-f",
+        "mpegts",
+        "-i",
+        "-",
+        "-movflags",
+        "faststart",
+        "-f",
+        "mp4",
+        output.as_str(),
     ];
     Command::new("ffmpeg")
         .args(ffmpeg_args)

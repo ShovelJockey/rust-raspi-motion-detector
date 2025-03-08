@@ -7,7 +7,10 @@ use axum::{
 use bytes::Bytes;
 use futures_util::TryStream;
 use std::{io, path::Path};
-use tokio::{fs::File, io::{AsyncReadExt, AsyncSeekExt}};
+use tokio::{
+    fs::File,
+    io::{AsyncReadExt, AsyncSeekExt},
+};
 use tokio_util::io::ReaderStream;
 
 #[derive(Debug)]
