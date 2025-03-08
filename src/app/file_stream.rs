@@ -7,7 +7,7 @@ use axum::{
 use bytes::Bytes;
 use futures_util::TryStream;
 use std::{io, path::Path};
-use tokio::fs::File;
+use tokio::{fs::File, io::{AsyncReadExt, AsyncSeekExt}};
 use tokio_util::io::ReaderStream;
 
 #[derive(Debug)]
@@ -64,6 +64,60 @@ where
     pub fn content_size(mut self, len: u64) -> Self {
         self.content_size = Some(len);
         self
+    }
+
+    pub fn into_range_response(self, start: u64, end: u64, total_size: u64) -> Response {
+        let mut resp = Response::builder().header(header::CONTENT_TYPE, "application/octet-stream");
+        resp = resp.status(StatusCode::PARTIAL_CONTENT);
+
+        resp = resp.header(
+            header::CONTENT_RANGE,
+            format!("bytes {start}-{end}/{total_size}"),
+        );
+
+        resp.body(body::Body::from_stream(self.stream))
+            .unwrap_or_else(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("build FileStream responsec error: {e}"),
+                )
+                    .into_response()
+            })
+    }
+
+    pub async fn try_range_response(
+        file_path: impl AsRef<Path>,
+        start: u64,
+        mut end: u64,
+    ) -> io::Result<Response> {
+        // open file
+        let mut file = File::open(file_path).await?;
+
+        // get file metadata
+        let metadata = file.metadata().await?;
+        let total_size = metadata.len();
+
+        if end == 0 {
+            end = total_size - 1;
+        }
+
+        // range check
+        if start > total_size {
+            return Ok((StatusCode::RANGE_NOT_SATISFIABLE, "Range Not Satisfiable").into_response());
+        }
+        if start > end {
+            return Ok((StatusCode::RANGE_NOT_SATISFIABLE, "Range Not Satisfiable").into_response());
+        }
+        if end >= total_size {
+            return Ok((StatusCode::RANGE_NOT_SATISFIABLE, "Range Not Satisfiable").into_response());
+        }
+
+        // get file stream and seek to start to return range response
+        file.seek(std::io::SeekFrom::Start(start)).await?;
+
+        let stream = ReaderStream::new(file.take(end - start + 1));
+
+        Ok(FileStream::new(stream).into_range_response(start, end, total_size))
     }
 }
 
