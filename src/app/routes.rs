@@ -7,6 +7,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use chrono::{offset::Utc, DateTime};
+use http::{HeaderMap, header};
 use ffmpeg_next::{ffi::AV_TIME_BASE, format::input};
 use glob::glob;
 use serde::{Deserialize, Serialize};
@@ -136,7 +137,7 @@ pub async fn shutdown_device(motion_detector: State<Arc<MotionDetector>>) -> Res
     .into_response();
 }
 
-pub async fn stream(file_name: Query<FileName>) -> Response {
+pub async fn download(file_name: Query<FileName>) -> Response {
     let file_name = &file_name.filename;
     let file_dir = var("VIDEO_SAVE_PATH").unwrap_or("/home".to_string());
     let formated_path = format!("{file_dir}/{file_name}");
@@ -146,13 +147,40 @@ pub async fn stream(file_name: Query<FileName>) -> Response {
         .into_response()
 }
 
-pub async fn get_all_videos_data(videos_since: Query<Option<u64>>) -> Response {
+pub async fn stream(file_name: Query<FileName>, headers: HeaderMap) -> Response {
+    let range_header = headers
+        .get(header::RANGE)
+        .and_then(|value| value.to_str().ok());
+
+    let (start, end) = if let Some(range) = range_header {
+        if let Some(range) = parse_range_header(range) {
+            range
+        } else {
+            return (StatusCode::RANGE_NOT_SATISFIABLE, "Invalid Range").into_response();
+        }
+    } else {
+        (0, 0) // default range end = 0, if end = 0 end == file size - 1
+    };
+
+    let file_name = &file_name.filename;
+    let file_dir = var("VIDEO_SAVE_PATH").unwrap_or("/home".to_string());
+    let formated_path = format!("{file_dir}/{file_name}");
+    FileStream::<ReaderStream<File>>::try_range_response(formated_path, start, end)
+        .await
+        .map_err(|e| (StatusCode::NOT_FOUND, format!("File not found: {e}")))
+        .into_response()
+}
+
+pub async fn get_all_videos_data(
+    // videos_since: Query<u64>
+) -> Response {
     let file_dir = var("VIDEO_SAVE_PATH").unwrap_or("/home".to_string());
     let pattern = format!("{file_dir}/*.mp4");
-    let videos_delta = match videos_since.0 {
-        Some(time) => UNIX_EPOCH + Duration::from_secs(time),
-        None => UNIX_EPOCH + Duration::from_secs(0),
-    };
+    let videos_delta = UNIX_EPOCH + Duration::from_secs(0);
+    // let videos_delta = match videos_since.0 {
+    //     Some(time) => UNIX_EPOCH + Duration::from_secs(time),
+    //     None => UNIX_EPOCH + Duration::from_secs(0),
+    // };
 
     match ffmpeg_next::init() {
         Ok(()) => {}
@@ -214,7 +242,7 @@ pub async fn start_download(
     StatusCode::OK.into_response()
 }
 
-pub async fn download(thread_pool: State<Arc<ThreadPool>>) -> Response {
+pub async fn download_from_task(thread_pool: State<Arc<ThreadPool>>) -> Response {
     let (task_running, stream) = thread_pool.get_result().await;
     if !task_running {
         return (
@@ -224,4 +252,18 @@ pub async fn download(thread_pool: State<Arc<ThreadPool>>) -> Response {
             .into_response();
     }
     stream.unwrap().into_response()
+}
+
+fn parse_range_header(range: &str) -> Option<(u64, u64)> {
+    let range = range.strip_prefix("bytes=")?;
+    let mut parts = range.split('-');
+    let start = parts.next()?.parse::<u64>().ok()?;
+    let end = parts
+        .next()
+        .and_then(|s| s.parse::<u64>().ok())
+        .unwrap_or(0);
+    if start > end {
+        return None;
+    }
+    Some((start, end))
 }

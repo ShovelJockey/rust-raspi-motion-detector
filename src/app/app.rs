@@ -13,9 +13,9 @@ pub async fn create_app(motion_detector: MotionDetector) -> Router {
         .route("/shutdown", post(routes::shutdown_device))
         .with_state(Arc::new(motion_detector))
         .route("/start_download", post(routes::start_download))
-        .route("/download", get(routes::download))
+        .route("/download", get(routes::download_from_task))
         .with_state(Arc::new(thread_pool))
-        .route("/file", get(routes::stream))
+        .route("/file", get(routes::download))
         .route("/video_data", get(routes::get_all_videos_data));
     app
 }
