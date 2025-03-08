@@ -14,14 +14,30 @@ pub fn start_recording() -> u32 {
     let save_path = var("VIDEO_SAVE_PATH").unwrap_or("/home".to_string());
     let output = format!("{save_path}/motion_{time:?}.mp4");
     println!("save arg: {output}");
-    let command_args = ["-t 0", "--signal", "-o", output.as_str()];
-    let child_process = Command::new("rpicam-vid")
-        .args(command_args)
-        .stdout(Stdio::null())
+    let rpicam_args = ["-t", "0", "--signal", "-codec", "libav", "--libav-format", "mpegts", "-o", "-"];
+    let camera_process = Command::new("rpicam-vid")
+        .args(rpicam_args)
+        .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
         .expect("Expected Camera command to succeed without error.");
-    return child_process.id();
+    let camera_process_id = camera_process.id();
+    let ffmpeg_args = [
+        "-f", "mpegts", 
+        "-i", "-", 
+        "-movflags", "faststart", 
+        "-f", "mp4", 
+        output.as_str()
+    ];
+    Command::new("ffmpeg")
+        .args(ffmpeg_args)
+        .stdin(Stdio::from(camera_process.stdout.unwrap()))
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("FFMPEG video processing process completed successfully.");
+
+    return camera_process_id;
 }
 
 pub fn shutdown_process(camera_process_id: &u32) {
