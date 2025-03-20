@@ -73,6 +73,7 @@ where
         let mut resp = Response::builder().header(header::CONTENT_TYPE, "application/octet-stream");
         resp = resp.status(StatusCode::PARTIAL_CONTENT);
 
+        println!("bytes {start}-{end}/{total_size}");
         resp = resp.header(
             header::CONTENT_RANGE,
             format!("bytes {start}-{end}/{total_size}"),
@@ -99,6 +100,7 @@ where
         // get file metadata
         let metadata = file.metadata().await?;
         let total_size = metadata.len();
+        println!("total size: {total_size}");
 
         if end == 0 {
             end = total_size - 1;

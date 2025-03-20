@@ -23,3 +23,4 @@ glob = "0.3.2"
 serde = "1.0.210"
 serde_json = "1.0.139"
 ffmpeg-next = {version = "7.1.0", features = ["rpi"]}
+http-range-header = "0.4.2"

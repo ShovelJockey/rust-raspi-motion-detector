@@ -10,6 +10,7 @@ use chrono::{offset::Utc, DateTime};
 use ffmpeg_next::{ffi::AV_TIME_BASE, format::input};
 use glob::glob;
 use http::{header, HeaderMap};
+use http_range_header::{self, EndPosition, StartPosition};
 use serde::{Deserialize, Serialize};
 use serde_json::to_string;
 use std::{
@@ -151,17 +152,26 @@ pub async fn stream(file_name: Query<FileName>, headers: HeaderMap) -> Response 
     let range_header = headers
         .get(header::RANGE)
         .and_then(|value| value.to_str().ok());
-
-    let (start, end) = if let Some(range) = range_header {
-        if let Some(range) = parse_range_header(range) {
-            range
-        } else {
+    // add handling for none range headers return bytes=0-
+    println!("range headers: {range_header:?}");
+    let ranges = http_range_header::parse_range_header(range_header.unwrap());
+    let valid_ranges = match ranges {
+        Ok(range) => range,
+        Err(err) => {
+            println!("Error parsing range, error: {err}");
             return (StatusCode::RANGE_NOT_SATISFIABLE, "Invalid Range").into_response();
         }
-    } else {
-        (0, 0) // default range end = 0, if end = 0 end == file size - 1
     };
-
+    let first_range = valid_ranges.ranges.get(0).unwrap();
+    let start = match first_range.start {
+        StartPosition::FromLast(val) => val,
+        StartPosition::Index(val) => val
+    };
+    let end = match first_range.end {
+        EndPosition::Index(val) => val,
+        EndPosition::LastByte => 0
+    };
+    println!("start and end headers parsed: {start}, {end}");
     let file_name = &file_name.filename;
     let file_dir = var("VIDEO_SAVE_PATH").unwrap_or("/home".to_string());
     let formated_path = format!("{file_dir}/{file_name}");
@@ -251,18 +261,4 @@ pub async fn download_from_task(thread_pool: State<Arc<ThreadPool>>) -> Response
             .into_response();
     }
     stream.unwrap().into_response()
-}
-
-fn parse_range_header(range: &str) -> Option<(u64, u64)> {
-    let range = range.strip_prefix("bytes=")?;
-    let mut parts = range.split('-');
-    let start = parts.next()?.parse::<u64>().ok()?;
-    let end = parts
-        .next()
-        .and_then(|s| s.parse::<u64>().ok())
-        .unwrap_or(0);
-    if start > end {
-        return None;
-    }
-    Some((start, end))
 }
