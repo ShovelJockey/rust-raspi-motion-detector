@@ -7,9 +7,16 @@ use std::{
     thread::{self},
     time,
 };
+use serde::Deserialize;
 
 pub struct SensorConfig {
     pub sensor_pin: IoPin,
+}
+
+#[derive(Deserialize, Debug)]
+pub enum CameraType {
+    Stream,
+    Record,
 }
 
 impl Clone for SensorConfig {
@@ -35,7 +42,7 @@ impl SensorConfig {
 
 pub struct MotionDetector {
     pub sensor_config: SensorConfig,
-    pub is_active: RwLock<bool>,
+    pub cam_type: RwLock<Option<CameraType>>,
     pub is_shutdown: RwLock<bool>,
 }
 
@@ -43,7 +50,7 @@ impl MotionDetector {
     pub fn new(pin_num: u8) -> MotionDetector {
         return MotionDetector {
             sensor_config: SensorConfig::new(pin_num),
-            is_active: RwLock::new(false),
+            cam_type: RwLock::new(None),
             is_shutdown: RwLock::new(false),
         };
     }
@@ -73,7 +80,6 @@ pub fn monitor_loop_record(motion_detector: &MotionDetector) {
     let mut is_motion: bool;
     let mut is_recording = false;
     let mut camera_process_id: Option<u32> = None;
-    *motion_detector.is_active.write().unwrap() = true;
     loop {
         if *motion_detector.is_shutdown.read().unwrap() {
             println!("shutdown ordered");
@@ -81,7 +87,7 @@ pub fn monitor_loop_record(motion_detector: &MotionDetector) {
                 println!("ending current recording");
                 camera::camera::shutdown_process(&camera_process_id.unwrap());
             }
-            *motion_detector.is_active.write().unwrap() = false;
+            *motion_detector.cam_type.write().unwrap() = None;
             *motion_detector.is_shutdown.write().unwrap() = false;
             break;
         }
@@ -110,11 +116,10 @@ pub fn monitor_loop_stream(motion_detector: &MotionDetector) {
     println!("Starting camera in streaming mode.");
     let mut is_motion: bool;
     let camera_process_id = camera::camera::start_stream();
-    *motion_detector.is_active.write().unwrap() = true;
     loop {
         if *motion_detector.is_shutdown.read().unwrap() {
             camera::camera::shutdown_process(&camera_process_id);
-            *motion_detector.is_active.write().unwrap() = false;
+            *motion_detector.cam_type.write().unwrap() = None;
             *motion_detector.is_shutdown.write().unwrap() = false;
         }
         is_motion = motion_detector.is_motion();

@@ -1,6 +1,6 @@
 use super::file_stream::FileStream;
 use super::task::ThreadPool;
-use crate::motion_detect::gpio::{monitor_loop_record, monitor_loop_stream, MotionDetector};
+use crate::motion_detect::gpio::{CameraType, monitor_loop_record, monitor_loop_stream, MotionDetector};
 use axum::{
     extract::{Query, State},
     http::StatusCode,
@@ -20,16 +20,10 @@ use std::{
     result::Result,
     sync::Arc,
     thread::spawn,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, UNIX_EPOCH},
 };
 use tokio::fs::File;
 use tokio_util::io::ReaderStream;
-
-#[derive(Deserialize, Debug)]
-enum CameraType {
-    Stream,
-    Record,
-}
 
 impl Display for CameraType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -58,19 +52,26 @@ pub struct FileName {
     filename: String,
 }
 
+#[derive(Deserialize)]
+pub struct VideosSince {
+    timestamp: i64,
+}
+
 #[derive(Deserialize, Serialize)]
 pub struct VideoData {
+    file_name: String,
     video_created: String,
     video_duration: f64,
 }
 
 impl VideoData {
-    pub fn new(created: SystemTime, video_path: &Path) -> Self {
+    pub fn new(created: DateTime<Utc>, video_path: &Path) -> Self {
         let duration = input(video_path).unwrap().duration() as f64 / AV_TIME_BASE as f64;
-        let datetime: DateTime<Utc> = created.into();
-        let formated_date = datetime.format("%d/%m/%Y %T").to_string();
+        let formated_date = created.format("%d/%m/%Y %T").to_string();
+        let file_name = video_path.file_name().unwrap().to_str().unwrap().to_string();
 
         return VideoData {
+            file_name: file_name,
             video_created: formated_date,
             video_duration: duration,
         };
@@ -81,7 +82,7 @@ pub async fn init_camera(
     motion_detector: State<Arc<MotionDetector>>,
     recording_type: Query<CameraParam>,
 ) -> Response {
-    if *motion_detector.is_active.read().unwrap() {
+    if motion_detector.cam_type.read().unwrap().is_some() {
         let message = "Cannot start camera as it is already active";
         return CameraResponse {
             status: StatusCode::CONFLICT,
@@ -99,13 +100,15 @@ pub async fn init_camera(
     };
     match recording_type.camera_type {
         CameraType::Record => {
+            *motion_detector.cam_type.write().unwrap() = Some(CameraType::Record);
             spawn(move || monitor_loop_record(&motion_detector));
         }
         CameraType::Stream => {
+            *motion_detector.cam_type.write().unwrap() = Some(CameraType::Stream);
             spawn(move || monitor_loop_stream(&motion_detector));
         }
     }
-    let message = format!("Camera started in {}", recording_type.camera_type);
+    let message = format!("Camera started in {} mode", recording_type.camera_type);
     return CameraResponse {
         status: StatusCode::OK,
         message: message.to_string(),
@@ -114,7 +117,7 @@ pub async fn init_camera(
 }
 
 pub async fn shutdown_device(motion_detector: State<Arc<MotionDetector>>) -> Response {
-    if !*motion_detector.is_active.read().unwrap() {
+    if motion_detector.cam_type.read().unwrap().is_none() {
         let message = "Cannot shutdown motion detector as it is not active";
         return CameraResponse {
             status: StatusCode::CONFLICT,
@@ -138,6 +141,31 @@ pub async fn shutdown_device(motion_detector: State<Arc<MotionDetector>>) -> Res
     .into_response();
 }
 
+pub async fn get_current_cam_status(motion_detector: State<Arc<MotionDetector>>) -> Response {
+    match &*motion_detector.cam_type.read().unwrap() {
+        Some(cam_type) => {
+            return CameraResponse {
+                status: StatusCode::OK,
+                message: cam_type.to_string(),
+            }
+            .into_response();
+        }
+        None => {}
+    };
+    if *motion_detector.is_shutdown.read().unwrap() {
+        return CameraResponse {
+            status: StatusCode::OK,
+            message: "Shutting Down".to_string(),
+        }
+        .into_response();
+    };
+    return CameraResponse {
+        status: StatusCode::OK,
+        message: "Inactive".to_string(),
+    }
+    .into_response();
+}
+
 pub async fn download(file_name: Query<FileName>) -> Response {
     let file_name = &file_name.filename;
     let file_dir = var("VIDEO_SAVE_PATH").unwrap_or("/home".to_string());
@@ -152,7 +180,7 @@ pub async fn stream(file_name: Query<FileName>, headers: HeaderMap) -> Response 
     let range_header = headers
         .get(header::RANGE)
         .and_then(|value| value.to_str().ok());
-    // add handling for none range headers return bytes=0-
+
     println!("range headers: {range_header:?}");
     let ranges = http_range_header::parse_range_header(range_header.unwrap());
     let valid_ranges = match ranges {
@@ -181,15 +209,11 @@ pub async fn stream(file_name: Query<FileName>, headers: HeaderMap) -> Response 
         .into_response()
 }
 
-pub async fn get_all_videos_data(// videos_since: Query<u64>
+pub async fn get_all_videos_data(videos_since: Query<VideosSince>
 ) -> Response {
     let file_dir = var("VIDEO_SAVE_PATH").unwrap_or("/home".to_string());
     let pattern = format!("{file_dir}/*.mp4");
-    let videos_delta = UNIX_EPOCH + Duration::from_secs(0);
-    // let videos_delta = match videos_since.0 {
-    //     Some(time) => UNIX_EPOCH + Duration::from_secs(time),
-    //     None => UNIX_EPOCH + Duration::from_secs(0),
-    // };
+    let videos_date = DateTime::from_timestamp_millis(videos_since.timestamp).unwrap();
 
     match ffmpeg_next::init() {
         Ok(()) => {}
@@ -212,9 +236,8 @@ pub async fn get_all_videos_data(// videos_since: Query<u64>
 
     let mut video_names = Vec::new();
     for file in paths.filter_map(Result::ok) {
-        let file_created = file.metadata().unwrap().created().unwrap();
-        println!("found file {}", &file.display());
-        if file_created >= videos_delta {
+        let file_created: DateTime<Utc> = file.metadata().unwrap().created().unwrap().into();
+        if file_created.date_naive() == videos_date.date_naive() {
             let video_data = VideoData::new(file_created, file.as_path());
             video_names.push(video_data);
         }

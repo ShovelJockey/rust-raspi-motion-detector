@@ -70,7 +70,7 @@ where
     }
 
     pub fn into_range_response(self, start: u64, end: u64, total_size: u64) -> Response {
-        let mut resp = Response::builder().header(header::CONTENT_TYPE, "application/octet-stream");
+        let mut resp = Response::builder().header(header::CONTENT_TYPE, "video/mp4");
         resp = resp.status(StatusCode::PARTIAL_CONTENT);
 
         println!("bytes {start}-{end}/{total_size}");
@@ -78,6 +78,9 @@ where
             header::CONTENT_RANGE,
             format!("bytes {start}-{end}/{total_size}"),
         );
+
+        let content_length = total_size - start;
+        resp = resp.header(header::CONTENT_LENGTH, content_length);
 
         resp.body(body::Body::from_stream(self.stream))
             .unwrap_or_else(|e| {
