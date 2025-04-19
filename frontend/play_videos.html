@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Links</title>
+    <link rel="shortcut icon" href="#">
+</head>
+<body>
+    <script type="module">
+        import { generateLinks } from "/static/script.js"
+        window.oninput = function() {
+            generateLinks();
+        };
+    </script>
+    <div >
+        <label for="video_since">Get Videos Since:</label>
+        <input type="date", name="video_since">
+    </div>
+    <div id="links-container">
+    </div>
+    <a href="http://127.0.0.1:3001/">Back to mainpage</a>
+</body>
+</html>

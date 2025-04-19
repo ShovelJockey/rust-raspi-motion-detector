@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Start Motion Detector</title>
+    <link rel="shortcut icon" href="#">
+</head>
+<body>
+    <div id="current_status" class="current_status">
+    </div>
+    <script type="module">
+        import { get_cam_status, start_recording_mode, start_streaming_mode } from "/static/script.js"
+        window.onload() = function() {
+            get_cam_status();
+        }
+        window.setInterval(get_cam_status, 5000);
+    </script>
+    <div>
+        <button type="button" onclick="start_recording_mode()">Start in recording mode</button>
+    </div>
+    <div id="streaming_section">
+        <button type="button" onclick="start_streaming_mode()">Start in streaming mode</button>
+    </div>
+    <a href="http://127.0.0.1:3001/">Back to mainpage</a>
+</body>
+</html>
