@@ -209,6 +209,11 @@ pub async fn stream(file_name: Query<FileName>, headers: HeaderMap) -> Response 
         .into_response()
 }
 
+pub async fn stream_handler(motion_detector: State<Arc<MotionDetector>>) -> impl IntoResponse {
+    let m3u8_path = motion_detector.hls_output_dir.path().join("stream.m3u8");
+    tokio::fs::read_to_string(m3u8_path).await.unwrap()
+}
+
 pub async fn get_all_videos_data(videos_since: Query<VideosSince>
 ) -> Response {
     let file_dir = var("VIDEO_SAVE_PATH").unwrap_or("/home".to_string());

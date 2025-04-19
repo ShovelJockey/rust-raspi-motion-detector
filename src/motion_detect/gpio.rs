@@ -8,6 +8,7 @@ use std::{
     time,
 };
 use serde::Deserialize;
+use tempfile::TempDir;
 
 pub struct SensorConfig {
     pub sensor_pin: IoPin,
@@ -44,14 +45,16 @@ pub struct MotionDetector {
     pub sensor_config: SensorConfig,
     pub cam_type: RwLock<Option<CameraType>>,
     pub is_shutdown: RwLock<bool>,
+    pub hls_output_dir: TempDir,
 }
 
 impl MotionDetector {
-    pub fn new(pin_num: u8) -> MotionDetector {
+    pub fn new(pin_num: u8, hls_output_dir: TempDir) -> MotionDetector {
         return MotionDetector {
             sensor_config: SensorConfig::new(pin_num),
             cam_type: RwLock::new(None),
             is_shutdown: RwLock::new(false),
+            hls_output_dir
         };
     }
 
@@ -116,6 +119,7 @@ pub fn monitor_loop_stream(motion_detector: &MotionDetector) {
     println!("Starting camera in streaming mode.");
     let mut is_motion: bool;
     let camera_process_id = camera::camera::start_stream();
+    camera::camera::start_ffmpeg_hls_conversion(&motion_detector.hls_output_dir);
     loop {
         if *motion_detector.is_shutdown.read().unwrap() {
             camera::camera::shutdown_process(&camera_process_id);
