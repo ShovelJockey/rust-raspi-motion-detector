@@ -1,6 +1,8 @@
 use super::file_stream::FileStream;
 use super::task::ThreadPool;
-use crate::motion_detect::gpio::{CameraType, monitor_loop_record, monitor_loop_stream, MotionDetector};
+use crate::motion_detect::gpio::{
+    monitor_loop_record, monitor_loop_stream, CameraType, MotionDetector,
+};
 use axum::{
     extract::{Query, State},
     http::StatusCode,
@@ -68,7 +70,12 @@ impl VideoData {
     pub fn new(created: DateTime<Utc>, video_path: &Path) -> Self {
         let duration = input(video_path).unwrap().duration() as f64 / AV_TIME_BASE as f64;
         let formated_date = created.format("%d/%m/%Y %T").to_string();
-        let file_name = video_path.file_name().unwrap().to_str().unwrap().to_string();
+        let file_name = video_path
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string();
 
         return VideoData {
             file_name: file_name,
@@ -80,7 +87,7 @@ impl VideoData {
 
 pub async fn init_camera(
     motion_detector: State<Arc<MotionDetector>>,
-    recording_type: Query<CameraParam>,
+    cam_data: Query<CameraParam>,
 ) -> Response {
     if motion_detector.cam_type.read().unwrap().is_some() {
         let message = "Cannot start camera as it is already active";
@@ -98,7 +105,7 @@ pub async fn init_camera(
         }
         .into_response();
     };
-    match recording_type.camera_type {
+    match cam_data.camera_type {
         CameraType::Record => {
             *motion_detector.cam_type.write().unwrap() = Some(CameraType::Record);
             spawn(move || monitor_loop_record(&motion_detector));
@@ -108,7 +115,7 @@ pub async fn init_camera(
             spawn(move || monitor_loop_stream(&motion_detector));
         }
     }
-    let message = format!("Camera started in {} mode", recording_type.camera_type);
+    let message = format!("Camera started in {} mode", cam_data.camera_type);
     return CameraResponse {
         status: StatusCode::OK,
         message: message.to_string(),
@@ -193,11 +200,11 @@ pub async fn stream(file_name: Query<FileName>, headers: HeaderMap) -> Response 
     let first_range = valid_ranges.ranges.get(0).unwrap();
     let start = match first_range.start {
         StartPosition::FromLast(val) => val,
-        StartPosition::Index(val) => val
+        StartPosition::Index(val) => val,
     };
     let end = match first_range.end {
         EndPosition::Index(val) => val,
-        EndPosition::LastByte => 0
+        EndPosition::LastByte => 0,
     };
     println!("start and end headers parsed: {start}, {end}");
     let file_name = &file_name.filename;
@@ -209,13 +216,7 @@ pub async fn stream(file_name: Query<FileName>, headers: HeaderMap) -> Response 
         .into_response()
 }
 
-pub async fn stream_handler(motion_detector: State<Arc<MotionDetector>>) -> impl IntoResponse {
-    let m3u8_path = motion_detector.hls_output_dir.path().join("stream.m3u8");
-    tokio::fs::read_to_string(m3u8_path).await.unwrap()
-}
-
-pub async fn get_all_videos_data(videos_since: Query<VideosSince>
-) -> Response {
+pub async fn get_all_videos_data(videos_since: Query<VideosSince>) -> Response {
     let file_dir = var("VIDEO_SAVE_PATH").unwrap_or("/home".to_string());
     let pattern = format!("{file_dir}/*.mp4");
     let videos_date = DateTime::from_timestamp_millis(videos_since.timestamp).unwrap();

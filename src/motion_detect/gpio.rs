@@ -2,13 +2,12 @@ use crate::camera;
 use chrono::prelude::*;
 use rppal::gpio::Mode::Input;
 use rppal::gpio::{Gpio, IoPin};
+use serde::Deserialize;
 use std::{
     sync::RwLock,
     thread::{self},
     time,
 };
-use serde::Deserialize;
-use tempfile::TempDir;
 
 pub struct SensorConfig {
     pub sensor_pin: IoPin,
@@ -45,16 +44,14 @@ pub struct MotionDetector {
     pub sensor_config: SensorConfig,
     pub cam_type: RwLock<Option<CameraType>>,
     pub is_shutdown: RwLock<bool>,
-    pub hls_output_dir: TempDir,
 }
 
 impl MotionDetector {
-    pub fn new(pin_num: u8, hls_output_dir: TempDir) -> MotionDetector {
+    pub fn new(pin_num: u8) -> MotionDetector {
         return MotionDetector {
             sensor_config: SensorConfig::new(pin_num),
             cam_type: RwLock::new(None),
             is_shutdown: RwLock::new(false),
-            hls_output_dir
         };
     }
 
@@ -88,7 +85,7 @@ pub fn monitor_loop_record(motion_detector: &MotionDetector) {
             println!("shutdown ordered");
             if is_recording {
                 println!("ending current recording");
-                camera::camera::shutdown_process(&camera_process_id.unwrap());
+                camera::camera::shutdown_cam_process(camera_process_id.unwrap());
             }
             *motion_detector.cam_type.write().unwrap() = None;
             *motion_detector.is_shutdown.write().unwrap() = false;
@@ -108,7 +105,7 @@ pub fn monitor_loop_record(motion_detector: &MotionDetector) {
             if camera_process_id.is_none() {
                 panic!("Error is_recording evaluates to true but camera process id is none");
             }
-            camera::camera::shutdown_process(&camera_process_id.unwrap());
+            camera::camera::shutdown_cam_process(camera_process_id.unwrap());
             is_recording = false;
             thread::sleep(time::Duration::from_secs_f32(0.5));
         }
@@ -118,13 +115,13 @@ pub fn monitor_loop_record(motion_detector: &MotionDetector) {
 pub fn monitor_loop_stream(motion_detector: &MotionDetector) {
     println!("Starting camera in streaming mode.");
     let mut is_motion: bool;
-    let camera_process_id = camera::camera::start_stream();
-    camera::camera::start_ffmpeg_hls_conversion(&motion_detector.hls_output_dir);
+    let mut stream_process = camera::camera::start_stream_webrtc();
     loop {
         if *motion_detector.is_shutdown.read().unwrap() {
-            camera::camera::shutdown_process(&camera_process_id);
+            stream_process.kill().expect("stream process cleanly exits");
             *motion_detector.cam_type.write().unwrap() = None;
             *motion_detector.is_shutdown.write().unwrap() = false;
+            break;
         }
         is_motion = motion_detector.is_motion();
         if is_motion {
