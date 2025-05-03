@@ -11,17 +11,19 @@
     </div>
     <script type="module">
         import { get_cam_status, start_recording_mode, start_streaming_mode } from "/static/script.js"
-        window.onload() = function() {
-            get_cam_status();
-        }
+        document.addEventListener("DOMContentLoaded", () => {
+        get_cam_status();
+        document.getElementById("recordingBtn").addEventListener("click", start_recording_mode);
+        document.getElementById("streamingBtn").addEventListener("click", start_streaming_mode);
         window.setInterval(get_cam_status, 5000);
+    });
     </script>
     <div>
-        <button type="button" onclick="start_recording_mode()">Start in recording mode</button>
+        <button type="button" id="recordingBtn">Start in recording mode</button>
     </div>
     <div id="streaming_section">
-        <button type="button" onclick="start_streaming_mode()">Start in streaming mode</button>
+        <button type="button" id="streamingBtn">Start in streaming mode</button>
     </div>
-    <a href="http://127.0.0.1:3001/">Back to mainpage</a>
+    <a href="http://192.168.0.40:3001/">Back to mainpage</a>
 </body>
 </html>

@@ -9,16 +9,17 @@
 <body>
     <script type="module">
         import { generateLinks } from "/static/script.js"
-        window.oninput = function() {
+        let videos_since = document.getElementById("video_since_id");
+        videos_since.oninput = function() {
             generateLinks();
         };
     </script>
     <div >
         <label for="video_since">Get Videos Since:</label>
-        <input type="date", name="video_since">
+        <input type="date", name="video_since", id="video_since_id">
     </div>
     <div id="links-container">
     </div>
-    <a href="http://127.0.0.1:3001/">Back to mainpage</a>
+    <a href="http://192.168.0.40:3001/">Back to mainpage</a>
 </body>
 </html>

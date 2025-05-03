@@ -1,6 +1,6 @@
 export function generateLinks() {
     let date_val = document.querySelector('input[type="date"]').valueAsNumber;
-    const endpoint = `http://127.0.0.1:3001/video_data?timestamp=${date_val}`;
+    const endpoint = `http://192.168.0.40:3001/video_data?timestamp=${date_val}`;
     const linksContainer = document.getElementById("links-container");
     linksContainer.replaceChildren();
     fetch(endpoint)
@@ -20,7 +20,7 @@ export function generateLinks() {
                 const video_section = document.createElement("video");
                 video_section.controls = true;
                 const source = document.createElement("source");
-                source.src = `http://127.0.0.0:3001/file?filename=${file_name}`;
+                source.src = `http://192.168.0.40:3001/file?filename=${file_name}`;
                 source.type = "video/mp4";
                 video_section.appendChild(source);
                 details_section.appendChild(video_section);
@@ -35,22 +35,25 @@ export function generateLinks() {
 
 
 export function get_cam_status() {
-    const endpoint = "http://127.0.0.0:3001/cam_status";
+    const endpoint = "http://192.168.0.40:3001/cam_status";
     const status_text = document.getElementById("current_status");
     fetch(endpoint)
-        .then(response => response.json())
+        .then(response => response.text())
         .then(data => {
             console.log(data);
-            status_text.textContent = data.message;
+            status_text.title = data.message;
+        })
+        .catch(error => {
+            console.error("Error fetching data:", error);
         })
 }
 
 
 export async function start_recording_mode() {
-    const endpoint = "http://127.0.0.0:3001/start_cam?recording_type=Record";
+    const endpoint = "http://192.168.0.40:3001/start_cam?camera_type=Record";
     const status_text = document.getElementById("current_status");
-    const response = await fetch(endpoint)
-    if (response.ok()) {
+    const response = await fetch(endpoint, {method: "POST"})
+    if (response.ok) {
         status_text.textContent = "Record";
     } else {
         console.error("Error occured trying to start camera status:", response.status);
@@ -59,16 +62,16 @@ export async function start_recording_mode() {
 
 
 export async function start_streaming_mode() {
-    const endpoint = "http://127.0.0.0:3001/start_cam?recording_type=Stream";
+    const endpoint = "http://192.168.0.40:3001/start_cam?camera_type=Stream";
     const status_text = document.getElementById("current_status");
     const streaming_section = document.getElementById("streaming_section");
-    const response = await fetch(endpoint)
-    if (response.ok()) {
+    const response = await fetch(endpoint, {method: "POST"})
+    if (response.ok) {
         status_text.textContent = "Stream";
         let link = document.createElement("a");
-        link.href = "http://127.0.0.0:3001/watch_stream";
+        link.href = "http://192.168.0.40:8889/cam";
         link.text = "Watch Stream"
-        streaming_section.appendChild
+        streaming_section.appendChild(link)
     } else {
         console.error("Error occured trying to start camera status:", response.status);
     }
