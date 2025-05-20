@@ -34,9 +34,9 @@ pub async fn play_videos() -> Result<Html<String>, (StatusCode, String)> {
     Ok(Html(html_content))
 }
 
-pub async fn start_motion_detector() -> Result<Html<String>, (StatusCode, String)> {
+pub async fn motion_detector_controls() -> Result<Html<String>, (StatusCode, String)> {
     let html_content = match read_to_string(
-        "/home/jamie/coding/rust-raspi-motion-detector/frontend/start_motion_detector.html",
+        "/home/jamie/coding/rust-raspi-motion-detector/frontend/motion_detector_controls.html",
     )
     .await
     {
