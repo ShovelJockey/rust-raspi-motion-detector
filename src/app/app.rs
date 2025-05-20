@@ -4,11 +4,23 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use std::sync::Arc;
+use std::{sync::Arc, env::var, fs::File};
 use tower_http::services::ServeDir;
+use tracing_subscriber::{fmt::layer, registry, prelude::*};
 
 pub async fn create_app(motion_detector: MotionDetector) -> Router {
     let thread_pool = ThreadPool::new(20).await;
+
+    let file_dir = var("LOG_PATH").unwrap_or("/home".to_string());
+    let file = match File::create_new(&file_dir) {
+        Ok(file) => file,
+        Err(_) => {
+            File::open(&file_dir).expect("Open already existing file")
+        }
+    };
+    let trace_layer = layer().pretty().with_writer(file);
+    registry().with(trace_layer).init();
+
     let app = Router::new()
         .route("/start_cam", post(routes::init_camera))
         .route("/shutdown", post(routes::shutdown_device))
@@ -23,8 +35,8 @@ pub async fn create_app(motion_detector: MotionDetector) -> Router {
         .route("/play_videos", get(web_routes::play_videos))
         .route("/watch_stream", get(web_routes::watch_stream))
         .route(
-            "/start_motion_detector",
-            get(web_routes::start_motion_detector),
+            "/motion_detector_controls",
+            get(web_routes::motion_detector_controls),
         )
         .nest_service(
             "/static",
