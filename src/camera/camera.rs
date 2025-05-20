@@ -57,9 +57,9 @@ pub fn start_recording() -> u32 {
 
 pub fn start_stream_webrtc() -> Child {
     let mediamtx_dir = var("MEDIAMTX_PATH").unwrap_or("/home".to_string());
-    println!("{mediamtx_dir}");
     let child_process = Command::new(format!("{mediamtx_dir}"))
-        .stderr(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
         .spawn()
         .expect("Expected Camera command to succeed without error.");
     return child_process;
