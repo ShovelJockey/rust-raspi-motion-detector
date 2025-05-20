@@ -31,7 +31,7 @@ export function generateLinks() {
         .catch(error => {
             console.error("Error fetching data:", error);
         })
-};
+}
 
 
 export function get_cam_status() {
@@ -42,6 +42,14 @@ export function get_cam_status() {
         .then(data => {
             console.log(data);
             status_text.title = data.message;
+            if (data.message == "Stream") {
+                console.log("stream type detected");
+                const streaming_section = document.getElementById("streaming_section");
+                let link = document.createElement("a");
+                link.href = "http://192.168.0.40:8889/cam";
+                link.text = "Watch Stream";
+                streaming_section.appendChild(link);
+            }
         })
         .catch(error => {
             console.error("Error fetching data:", error);
@@ -56,7 +64,7 @@ export async function start_recording_mode() {
     if (response.ok) {
         status_text.textContent = "Record";
     } else {
-        console.error("Error occured trying to start camera status:", response.status);
+        console.error("Error occured trying to start camera in record mode, status:", response.status);
     }
 }
 
@@ -73,6 +81,18 @@ export async function start_streaming_mode() {
         link.text = "Watch Stream"
         streaming_section.appendChild(link)
     } else {
-        console.error("Error occured trying to start camera status:", response.status);
+        console.error("Error occured trying to start camera in stream mode, status:", response.status);
+    }
+}
+
+
+export async function stop_camera() {
+    const endpoint = "http://192.168.0.40:3001/shutdown";
+    const status_text = document.getElementById("current_status");
+    const response = await fetch(endpoint, {method: "POST"})
+    if (response.ok) {
+        status_text.textContent = "Inactive";
+    } else {
+        console.error("Error occured trying to stop camera:", response.status);
     }
 }

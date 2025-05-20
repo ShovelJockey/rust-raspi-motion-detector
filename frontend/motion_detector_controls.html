@@ -3,19 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Start Motion Detector</title>
+    <title>Motion Detector Controls</title>
     <link rel="shortcut icon" href="#">
 </head>
 <body>
     <div id="current_status" class="current_status">
     </div>
     <script type="module">
-        import { get_cam_status, start_recording_mode, start_streaming_mode } from "/static/script.js"
+        import { get_cam_status, start_recording_mode, start_streaming_mode, stop_camera } from "/static/script.js"
         document.addEventListener("DOMContentLoaded", () => {
         get_cam_status();
         document.getElementById("recordingBtn").addEventListener("click", start_recording_mode);
         document.getElementById("streamingBtn").addEventListener("click", start_streaming_mode);
-        window.setInterval(get_cam_status, 5000);
+        document.getElementById("shutdownBtn").addEventListener("click", stop_camera);
+        window.setInterval(get_cam_status, 1000);
     });
     </script>
     <div>
@@ -24,6 +25,10 @@
     <div id="streaming_section">
         <button type="button" id="streamingBtn">Start in streaming mode</button>
     </div>
+    <div>
+        <button type="button" id="shutdownBtn">Stop camera</button>
+    </div>
+    <a href="http://192.168.0.40:3001/play_videos">Watch recorded videos</a>
     <a href="http://192.168.0.40:3001/">Back to mainpage</a>
 </body>
 </html>
