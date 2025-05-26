@@ -12,12 +12,11 @@
     <script type="module">
         import { get_cam_status, start_recording_mode, start_streaming_mode, stop_camera } from "/static/script.js"
         document.addEventListener("DOMContentLoaded", () => {
-        get_cam_status();
+        get_cam_status()});
         document.getElementById("recordingBtn").addEventListener("click", start_recording_mode);
         document.getElementById("streamingBtn").addEventListener("click", start_streaming_mode);
         document.getElementById("shutdownBtn").addEventListener("click", stop_camera);
         window.setInterval(get_cam_status, 1000);
-    });
     </script>
     <div>
         <button type="button" id="recordingBtn">Start in recording mode</button>
@@ -29,6 +28,6 @@
         <button type="button" id="shutdownBtn">Stop camera</button>
     </div>
     <a href="http://192.168.0.40:3001/play_videos">Watch recorded videos</a>
-    <a href="http://192.168.0.40:3001/">Back to mainpage</a>
+    <a href="http://192.168.0.40:3001/dashboard">Back to mainpage</a>
 </body>
 </html>

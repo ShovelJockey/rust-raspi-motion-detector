@@ -1,6 +1,6 @@
 use std::{
     env::var,
-    process::{Command, Stdio, Child},
+    process::{Child, Command, Stdio},
     time::{SystemTime, UNIX_EPOCH},
 };
 use tempfile::TempDir;

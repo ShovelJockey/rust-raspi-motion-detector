@@ -17,3 +17,15 @@ async fn main() {
     println!("started");
     serve(listener, app).await.unwrap();
 }
+
+// add frontend shutdown of camera -- added needs testing
+// add button for stream view if stream currently running - not just after being started -- added needs testing SORT
+
+// finish login setup
+// add login redirect
+// move to https
+// add redirect to https
+
+// add css styling
+// adjust env/path usage to be less specific to current pi system
+// look into doing webrtc myself in rust

@@ -60,7 +60,7 @@ export function get_cam_status() {
 export async function start_recording_mode() {
     const endpoint = "http://192.168.0.40:3001/start_cam?camera_type=Record";
     const status_text = document.getElementById("current_status");
-    const response = await fetch(endpoint, {method: "POST"})
+    const response = await fetch(endpoint, { method: "POST" })
     if (response.ok) {
         status_text.textContent = "Record";
     } else {
@@ -73,7 +73,7 @@ export async function start_streaming_mode() {
     const endpoint = "http://192.168.0.40:3001/start_cam?camera_type=Stream";
     const status_text = document.getElementById("current_status");
     const streaming_section = document.getElementById("streaming_section");
-    const response = await fetch(endpoint, {method: "POST"})
+    const response = await fetch(endpoint, { method: "POST" })
     if (response.ok) {
         status_text.textContent = "Stream";
         let link = document.createElement("a");
@@ -89,10 +89,29 @@ export async function start_streaming_mode() {
 export async function stop_camera() {
     const endpoint = "http://192.168.0.40:3001/shutdown";
     const status_text = document.getElementById("current_status");
-    const response = await fetch(endpoint, {method: "POST"})
+    const response = await fetch(endpoint, { method: "POST" })
     if (response.ok) {
         status_text.textContent = "Inactive";
     } else {
         console.error("Error occured trying to stop camera:", response.status);
     }
 }
+
+export async function attempt_login() {
+    const endpoint = "http://192.168.0.40:3001/auth_login";
+    let password = document.getElementById("pwd_val").value;
+    const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ "password": password })
+    });
+    if (response.ok) {
+        console.log("pwd accepted");
+    } else {
+        console.log("pwd rejected:", response.status);
+    }
+}
+
