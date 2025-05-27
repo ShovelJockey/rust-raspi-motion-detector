@@ -1,7 +1,8 @@
 use crate::motion_detect::gpio::MotionDetector;
-use axum::serve;
 use dotenvy::dotenv;
 use tokio;
+use axum_server::tls_rustls::RustlsConfig;
+use std::{path::PathBuf, net::SocketAddr};
 
 pub mod app;
 mod camera;
@@ -13,9 +14,26 @@ async fn main() {
     dotenv().ok();
     let motion_detector = MotionDetector::new(4);
     let app = app::app::create_app(motion_detector).await;
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3001").await.unwrap();
+
+    tokio::spawn(app::app::redirect_http_to_https());
+
+    let config = RustlsConfig::from_pem_file(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("self_signed_certs")
+            .join("cert.pem"),
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("self_signed_certs")
+            .join("key.pem"),
+    )
+    .await
+    .expect("Valid https certs");
+
+    let addr = SocketAddr::from(([0, 0, 0, 0], 3001));
     println!("started");
-    serve(listener, app).await.unwrap();
+    axum_server::bind_rustls(addr, config)
+        .serve(app.into_make_service())
+        .await
+        .unwrap();
 }
 
 // add frontend shutdown of camera -- added needs testing

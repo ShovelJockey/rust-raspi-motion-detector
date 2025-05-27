@@ -1,6 +1,6 @@
 export function generateLinks() {
     let date_val = document.querySelector('input[type="date"]').valueAsNumber;
-    const endpoint = `http://192.168.0.40:3001/video_data?timestamp=${date_val}`;
+    const endpoint = `https://192.168.0.40:3001/video_data?timestamp=${date_val}`;
     const linksContainer = document.getElementById("links-container");
     linksContainer.replaceChildren();
     fetch(endpoint)
@@ -20,7 +20,7 @@ export function generateLinks() {
                 const video_section = document.createElement("video");
                 video_section.controls = true;
                 const source = document.createElement("source");
-                source.src = `http://192.168.0.40:3001/file?filename=${file_name}`;
+                source.src = `https://192.168.0.40:3001/file?filename=${file_name}`;
                 source.type = "video/mp4";
                 video_section.appendChild(source);
                 details_section.appendChild(video_section);
@@ -35,7 +35,7 @@ export function generateLinks() {
 
 
 export function get_cam_status() {
-    const endpoint = "http://192.168.0.40:3001/cam_status";
+    const endpoint = "https://192.168.0.40:3001/cam_status";
     const status_text = document.getElementById("current_status");
     fetch(endpoint)
         .then(response => response.text())
@@ -46,7 +46,7 @@ export function get_cam_status() {
                 console.log("stream type detected");
                 const streaming_section = document.getElementById("streaming_section");
                 let link = document.createElement("a");
-                link.href = "http://192.168.0.40:8889/cam";
+                link.href = "https://192.168.0.40:3001/watch_stream";
                 link.text = "Watch Stream";
                 streaming_section.appendChild(link);
             }
@@ -58,7 +58,7 @@ export function get_cam_status() {
 
 
 export async function start_recording_mode() {
-    const endpoint = "http://192.168.0.40:3001/start_cam?camera_type=Record";
+    const endpoint = "https://192.168.0.40:3001/start_cam?camera_type=Record";
     const status_text = document.getElementById("current_status");
     const response = await fetch(endpoint, { method: "POST" })
     if (response.ok) {
@@ -70,14 +70,14 @@ export async function start_recording_mode() {
 
 
 export async function start_streaming_mode() {
-    const endpoint = "http://192.168.0.40:3001/start_cam?camera_type=Stream";
+    const endpoint = "https://192.168.0.40:3001/start_cam?camera_type=Stream";
     const status_text = document.getElementById("current_status");
     const streaming_section = document.getElementById("streaming_section");
     const response = await fetch(endpoint, { method: "POST" })
     if (response.ok) {
         status_text.textContent = "Stream";
         let link = document.createElement("a");
-        link.href = "http://192.168.0.40:8889/cam";
+        link.href = "https://192.168.0.40:3001/watch_stream";
         link.text = "Watch Stream"
         streaming_section.appendChild(link)
     } else {
@@ -87,7 +87,7 @@ export async function start_streaming_mode() {
 
 
 export async function stop_camera() {
-    const endpoint = "http://192.168.0.40:3001/shutdown";
+    const endpoint = "https://192.168.0.40:3001/shutdown";
     const status_text = document.getElementById("current_status");
     const response = await fetch(endpoint, { method: "POST" })
     if (response.ok) {
@@ -96,22 +96,3 @@ export async function stop_camera() {
         console.error("Error occured trying to stop camera:", response.status);
     }
 }
-
-export async function attempt_login() {
-    const endpoint = "http://192.168.0.40:3001/auth_login";
-    let password = document.getElementById("pwd_val").value;
-    const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-            "Accept": "application/json",
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ "password": password })
-    });
-    if (response.ok) {
-        console.log("pwd accepted");
-    } else {
-        console.log("pwd rejected:", response.status);
-    }
-}
-

@@ -28,3 +28,5 @@ tempfile = "3.19.1"
 tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
 tower-sessions = "0.14.0"
+axum-server = { version = "0.7", features = ["tls-rustls"] }
+axum-extra = { version = "0.10.0" }
