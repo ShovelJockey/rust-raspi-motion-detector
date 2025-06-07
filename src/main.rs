@@ -1,8 +1,8 @@
 use crate::motion_detect::gpio::MotionDetector;
-use dotenvy::dotenv;
-use tokio;
 use axum_server::tls_rustls::RustlsConfig;
-use std::{path::PathBuf, net::SocketAddr};
+use dotenvy::dotenv;
+use std::{net::SocketAddr, path::PathBuf};
+use tokio;
 
 pub mod app;
 mod camera;
@@ -36,13 +36,13 @@ async fn main() {
         .unwrap();
 }
 
-// add frontend shutdown of camera -- added needs testing
-// add button for stream view if stream currently running - not just after being started -- added needs testing SORT
+// double check security measures are ok
+// improve redirect to login
+// improve https redirect
 
-// finish login setup
-// add login redirect
-// move to https
-// add redirect to https
+// implement manual udp to webrtc stream
+
+// add --low-latency to recording?
 
 // add css styling
 // adjust env/path usage to be less specific to current pi system

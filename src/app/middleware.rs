@@ -2,7 +2,7 @@ use axum::{
     body::Body,
     extract::Request,
     middleware::Next,
-    response::{Response, Redirect},
+    response::{Redirect, Response},
     Form,
 };
 use chrono::Utc;
@@ -64,7 +64,3 @@ pub async fn auth_login(session: Session, Form(login_form): Form<LoginForm>) -> 
         }
     };
 }
-
-// async fn https_redirect() {
-
-// }

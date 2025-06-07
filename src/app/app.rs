@@ -1,16 +1,15 @@
 use crate::app::{middleware, routes, task::ThreadPool, web_routes};
 use crate::motion_detect::gpio::MotionDetector;
 use axum::{
-    middleware::from_fn,
-    routing::{get, post},
-    Router,
     handler::HandlerWithoutStateExt,
     http::{uri::Authority, StatusCode, Uri},
+    middleware::from_fn,
     response::Redirect,
-    BoxError
+    routing::{get, post},
+    BoxError, Router,
 };
 use axum_extra::extract::Host;
-use std::{env::var, fs::File, sync::Arc, net::SocketAddr};
+use std::{env::var, fs::File, net::SocketAddr, sync::Arc};
 use tower_http::services::ServeDir;
 use tracing_subscriber::{fmt::layer, prelude::*, registry};
 
