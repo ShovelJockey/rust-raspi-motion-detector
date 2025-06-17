@@ -3,6 +3,7 @@ use axum_server::tls_rustls::RustlsConfig;
 use dotenvy::dotenv;
 use std::{net::SocketAddr, path::PathBuf};
 use tokio;
+use tokio_rustls::rustls;
 
 pub mod app;
 mod camera;
@@ -12,6 +13,7 @@ pub mod motion_detect;
 async fn main() {
     camera::camera::test_initialise_camera().expect("Camera initialised successfully");
     dotenv().ok();
+    rustls::crypto::ring::default_provider().install_default().unwrap();
     let motion_detector = MotionDetector::new(4);
     let app = app::app::create_app(motion_detector).await;
 
@@ -29,6 +31,7 @@ async fn main() {
     .expect("Valid https certs");
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3001));
+    camera::camera::start_stream_rtp();
     println!("started");
     axum_server::bind_rustls(addr, config)
         .serve(app.into_make_service())

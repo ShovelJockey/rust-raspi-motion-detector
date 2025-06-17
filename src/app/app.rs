@@ -1,4 +1,5 @@
 use crate::app::{middleware, routes, task::ThreadPool, web_routes};
+use crate::camera::webrtc::offer_handler;
 use crate::motion_detect::gpio::MotionDetector;
 use axum::{
     handler::HandlerWithoutStateExt,
@@ -47,6 +48,7 @@ pub async fn create_app(motion_detector: MotionDetector) -> Router {
         .route("/auth_login", post(middleware::auth_login))
         .route("/login", get(web_routes::login))
         .layer(session_store)
+        .route("/offer", post(offer_handler))
         .nest_service(
             "/static",
             ServeDir::new("/home/jamie/coding/rust-raspi-motion-detector/frontend/static"),

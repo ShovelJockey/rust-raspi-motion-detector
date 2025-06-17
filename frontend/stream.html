@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebRTC RTP Stream</title>
+</head>
+<body>
+    <h1>WebRTC RTP Stream</h1>
+    Video<br /><div id="remoteVideos"></div> <br />
+    Logs<br /><div id="div"></div>
+    
+    <script>
+        let log = msg => {
+                document.getElementById('div').innerHTML += msg + '<br>'
+        };
+        async function start() {
+            let pc = null;
+            let log = msg => {
+                document.getElementById('div').innerHTML += msg + '<br>'
+            };
+
+            pc = new RTCPeerConnection({
+                    iceServers: [
+                        { urls: "stun:stun.l.google.com:19302" }
+                    ]
+                });
+
+            pc.ontrack = function (event) {
+                var el = document.createElement(event.track.kind)
+                el.srcObject = event.streams[0]
+                el.autoplay = true
+                el.controls = true
+
+                document.getElementById('remoteVideos').appendChild(el)
+            };
+            pc.oniceconnectionstatechange = () => {
+            console.log('ICE connection state:', pc.iceConnectionState);
+            };
+            pc.onicegatheringstatechange = () => {
+            console.log('ICE gathering state:', pc.iceGatheringState);
+            };
+            pc.onicecandidate = event => {
+                if (event.candidate) {
+                    console.log('New ICE candidate:', event.candidate);
+                }
+            };
+
+            pc.addTransceiver('video', {'direction': 'recvonly'});
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer).catch(log);
+
+            const response = await fetch('https://192.168.0.40:3001/offer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(offer)
+                });
+                
+            const answer = await response.json();
+            await pc.setRemoteDescription(answer);
+            console.log(answer);
+        }
+        start().catch(log);
+    </script>
+</body>
+</html>

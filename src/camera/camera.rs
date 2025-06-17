@@ -65,6 +65,50 @@ pub fn start_stream_webrtc() -> Child {
     return child_process;
 }
 
+pub fn start_stream_rtp() {
+    let command_args = [
+        "-t",
+        "0",
+        "-n",
+        "--inline",
+        "--listen",
+        "--libav-format",
+        "h264",
+        "-o",
+        "-",
+    ];
+
+    let camera_process = Command::new("rpicam-vid")
+        .args(command_args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("Expected Camera command to succeed without error.");
+
+    let ffmpeg_args = [
+        "-i",
+        "-",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "ultrafast",
+        "-tune",
+        "zerolatency",
+        "-localaddr",
+        "192.168.0.40",
+        "-f",
+        "rtp",
+        "rtp://239.255.255.250:5004"
+    ];
+    Command::new("ffmpeg")
+        .args(ffmpeg_args)
+        .stdin(Stdio::from(camera_process.stdout.unwrap()))
+        // .stdout(Stdio::null()) 
+        // .stderr(Stdio::null())
+        .spawn()
+        .expect("FFMPEG video processing process completed successfully.");
+}
+
 #[allow(dead_code)]
 pub fn start_stream_hls() -> u32 {
     let command_args = [
