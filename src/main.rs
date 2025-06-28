@@ -13,7 +13,9 @@ pub mod motion_detect;
 async fn main() {
     camera::camera::test_initialise_camera().expect("Camera initialised successfully");
     dotenv().ok();
-    rustls::crypto::ring::default_provider().install_default().unwrap();
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .unwrap();
     let motion_detector = MotionDetector::new(4);
     let app = app::app::create_app(motion_detector).await;
 

@@ -1,20 +1,32 @@
 use anyhow::Result;
-use axum::Json;
+use axum::{
+    extract::ws::{Message, WebSocket, WebSocketUpgrade},
+    response::Response,
+    Json,
+};
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
+use futures_util::{SinkExt, StreamExt};
 use http::StatusCode;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tokio::{net::UdpSocket, spawn};
+use tokio::{net::UdpSocket, spawn, sync::Mutex};
 use webrtc::{
     api::{
         interceptor_registry::register_default_interceptors,
-        media_engine::{MediaEngine, MIME_TYPE_H264},
+        media_engine::{MediaEngine, MIME_TYPE_H264, MIME_TYPE_VP8},
         APIBuilder, API,
     },
-    ice_transport::{ice_connection_state::RTCIceConnectionState, ice_server::RTCIceServer},
+    ice::candidate::Candidate,
+    ice_transport::{
+        ice_candidate::{RTCIceCandidate, RTCIceCandidateInit},
+        ice_connection_state::RTCIceConnectionState,
+        ice_server::RTCIceServer,
+    },
     interceptor::registry::Registry,
     peer_connection::{
-        self, configuration::RTCConfiguration, peer_connection_state::RTCPeerConnectionState, sdp::session_description::RTCSessionDescription
+        self, configuration::RTCConfiguration, peer_connection_state::RTCPeerConnectionState,
+        sdp::session_description::RTCSessionDescription,
     },
     rtp_transceiver::rtp_codec::RTCRtpCodecCapability,
     track::track_local::{
@@ -24,6 +36,150 @@ use webrtc::{
 };
 
 use crate::camera::camera;
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "type")]
+enum ClientMessage {
+    Offer { sdp: String },
+    IceCandidate { candidate: String },
+}
+
+async fn ws_handler(ws: WebSocketUpgrade) -> Response {
+    ws.on_upgrade(|socket| handle_socket(socket))
+}
+
+pub async fn handle_socket(socket: WebSocket) {
+    let (sender, mut reciever) = socket.split();
+    let sender = Arc::new(Mutex::new(sender));
+
+    let api = build_api();
+
+    let config = RTCConfiguration {
+        ice_servers: vec![RTCIceServer {
+            urls: vec!["stun:stun.l.google.com:19302".to_owned()],
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+
+    let peer_conn = Arc::new(
+        api.new_peer_connection(config)
+            .await
+            .expect("new peer connection"),
+    );
+
+    let video_track = Arc::new(TrackLocalStaticRTP::new(
+        RTCRtpCodecCapability {
+            mime_type: MIME_TYPE_H264.to_owned(),
+            ..Default::default()
+        },
+        "video".to_owned(),
+        "webrtc-rs".to_owned(),
+    ));
+
+    let rtp_sender = peer_conn
+        .add_track(Arc::clone(&video_track) as Arc<dyn TrackLocal + Send + Sync>)
+        .await
+        .expect("add track to peer connection");
+
+    let buff_reader = spawn(async move {
+        let mut rtcp_buf = vec![0u8; 1500];
+        while let Ok((_, _)) = rtp_sender.read(&mut rtcp_buf).await {}
+        Result::<()>::Ok(())
+    });
+
+    let udp_socket = UdpSocket::bind("127.0.0.1:5004").await.unwrap();
+
+    let track_writer = spawn(async move {
+        let mut inbound_rtp_packet = vec![0u8; 1500]; // UDP MTU
+        while let Ok((n, _)) = udp_socket.recv_from(&mut inbound_rtp_packet).await {
+            println!("packet length: {n}");
+            if let Err(err) = video_track.write(&inbound_rtp_packet[..n]).await {
+                if Error::ErrClosedPipe == err {
+                    println!("The peer conn has been closed");
+                } else {
+                    println!("video_track write err: {err}");
+                }
+                return;
+            }
+        }
+    });
+
+    let ice_sender = sender.clone();
+    peer_conn.on_ice_candidate(Box::new(move |candidate: Option<RTCIceCandidate>| {
+        let ice_sender_clone = ice_sender.clone();
+        Box::pin(async move {
+            if let Some(candidate) = candidate {
+                println!("New ICE candidate: {:?}", candidate);
+                let candidate_json = candidate
+                    .to_json()
+                    .expect("Candidate to be json serialised");
+                let candidate_string = serde_json::to_string(&candidate_json)
+                    .expect("candidate json to be string serialised");
+                let mut sender_lock = ice_sender_clone.blocking_lock();
+                sender_lock
+                    .send(Message::Text(candidate_string.into()))
+                    .await
+                    .expect("send new ice candidate");
+            }
+        })
+    }));
+
+    while let Some(Ok(message)) = reciever.next().await {
+        if let Message::Text(text) = message {
+            if let Ok(client_message) = serde_json::from_str::<ClientMessage>(&text) {
+                match client_message {
+                    ClientMessage::Offer { sdp } => {
+                        let raw_offer = sdp.clone();
+                        println!("raw offer: {raw_offer}");
+                        match RTCSessionDescription::offer(sdp) {
+                            Ok(offer) => {
+                                peer_conn
+                                    .set_remote_description(offer)
+                                    .await
+                                    .expect("set the remote description");
+
+                                let answer =
+                                    peer_conn.create_answer(None).await.expect("create answer");
+                                peer_conn
+                                    .set_local_description(answer.clone())
+                                    .await
+                                    .expect("local desc set");
+                                let raw_answer = answer.sdp.clone();
+                                println!("raw answer: {raw_answer}");
+                                let json_string_answer =
+                                    serde_json::to_string(&answer).expect("answer working format");
+                                let mut answer_sender = sender.lock().await;
+                                answer_sender
+                                    .send(Message::Text(json_string_answer.into()))
+                                    .await
+                                    .expect("replied with answer");
+                            }
+                            Err(err) => {
+                                println!("Error with browser SDP, error: {err}")
+                            }
+                        }
+                    }
+                    ClientMessage::IceCandidate { candidate } => {
+                        match serde_json::from_str::<RTCIceCandidateInit>(&candidate) {
+                            Ok(ice_candidate) => {
+                                peer_conn
+                                    .add_ice_candidate(ice_candidate)
+                                    .await
+                                    .expect("set ice candidate");
+                            }
+                            Err(err) => {
+                                println!("failed to parse incoming candidate string as ice candidate, err: {err}")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    buff_reader.abort();
+    track_writer.abort();
+}
 
 pub async fn offer_handler(
     Json(offer): Json<RTCSessionDescription>,
@@ -56,11 +212,12 @@ fn build_api() -> API {
 }
 
 async fn start_writing_track(video_track: Arc<TrackLocalStaticRTP>) {
-    let udp_socket = UdpSocket::bind("239.255.255.250:5004").await.unwrap();
+    let udp_socket = UdpSocket::bind("127.0.0.1:5004").await.unwrap();
 
     tokio::spawn(async move {
         let mut inbound_rtp_packet = vec![0u8; 1500]; // UDP MTU
         while let Ok((n, _)) = udp_socket.recv_from(&mut inbound_rtp_packet).await {
+            println!("packet length: {n}");
             if let Err(err) = video_track.write(&inbound_rtp_packet[..n]).await {
                 if Error::ErrClosedPipe == err {
                     println!("The peer conn has been closed");
@@ -94,11 +251,8 @@ async fn handle_offer(
 
     let video_track = Arc::new(TrackLocalStaticRTP::new(
         RTCRtpCodecCapability {
-            mime_type: MIME_TYPE_H264.to_owned(),
-            clock_rate: 90000,
-            channels: 0,
-            sdp_fmtp_line: "packetization-mode=1;profile-level-id=42e01f".to_owned(),
-            rtcp_feedback: vec![],
+            mime_type: MIME_TYPE_VP8.to_owned(),
+            ..Default::default()
         },
         "video".to_owned(),
         "webrtc-rs".to_owned(),
@@ -132,6 +286,9 @@ async fn handle_offer(
     let _ = gather_complete.recv().await;
 
     start_writing_track(video_track).await;
+
+    let str_answer = answer.sdp.clone();
+    println!("answer: {str_answer}");
 
     Ok(answer)
 }
