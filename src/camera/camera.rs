@@ -67,8 +67,8 @@ pub fn start_stream_webrtc() -> Child {
 
 pub fn start_stream_rtp() {
     let command_args = [
-        "-t", "0", "-n", "--inline", "--listen", // "--libav-format",
-        // "h264",
+        "-t", "0", "-n", "--inline", "--listen", "--libav-format",
+        "h264",
         "-o", "-",
     ];
 
@@ -95,8 +95,8 @@ pub fn start_stream_rtp() {
     Command::new("ffmpeg")
         .args(ffmpeg_args)
         .stdin(Stdio::from(camera_process.stdout.unwrap()))
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        // .stdout(Stdio::null())
+        // .stderr(Stdio::null())
         .spawn()
         .expect("FFMPEG video processing process completed successfully.");
 }

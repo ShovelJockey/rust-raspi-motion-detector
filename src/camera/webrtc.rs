@@ -44,11 +44,18 @@ enum ClientMessage {
     IceCandidate { candidate: String },
 }
 
-async fn ws_handler(ws: WebSocketUpgrade) -> Response {
+#[derive(Serialize, Deserialize)]
+struct CandidateFormat {
+    #[serde(rename = "type")]
+    data_type: String,
+    candidate: RTCIceCandidateInit
+}
+
+pub async fn ws_handler(ws: WebSocketUpgrade) -> Response {
     ws.on_upgrade(|socket| handle_socket(socket))
 }
 
-pub async fn handle_socket(socket: WebSocket) {
+async fn handle_socket(socket: WebSocket) {
     let (sender, mut reciever) = socket.split();
     let sender = Arc::new(Mutex::new(sender));
 
@@ -114,9 +121,13 @@ pub async fn handle_socket(socket: WebSocket) {
                 let candidate_json = candidate
                     .to_json()
                     .expect("Candidate to be json serialised");
-                let candidate_string = serde_json::to_string(&candidate_json)
+                let formatted_candidate = CandidateFormat{
+                    data_type: "ice_candidate".to_string(),
+                    candidate: candidate_json
+                };
+                let candidate_string = serde_json::to_string(&formatted_candidate)
                     .expect("candidate json to be string serialised");
-                let mut sender_lock = ice_sender_clone.blocking_lock();
+                let mut sender_lock = ice_sender_clone.lock().await;
                 sender_lock
                     .send(Message::Text(candidate_string.into()))
                     .await
@@ -177,6 +188,7 @@ pub async fn handle_socket(socket: WebSocket) {
             }
         }
     }
+    println!("socket closed");
     buff_reader.abort();
     track_writer.abort();
 }
