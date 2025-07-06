@@ -1,6 +1,6 @@
 use std::{
     env::var,
-    process::{Child, Command, Stdio},
+    process::{Command, Stdio},
     time::{SystemTime, UNIX_EPOCH},
 };
 use tempfile::TempDir;
@@ -55,17 +55,7 @@ pub fn start_recording() -> u32 {
     return camera_process_id;
 }
 
-pub fn start_stream_webrtc() -> Child {
-    let mediamtx_dir = var("MEDIAMTX_PATH").unwrap_or("/home".to_string());
-    let child_process = Command::new(format!("{mediamtx_dir}"))
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("Expected Camera command to succeed without error.");
-    return child_process;
-}
-
-pub fn start_stream_rtp() {
+pub fn start_stream_rtp() -> u32 {
     let command_args = [
         "-t",
         "0",
@@ -84,6 +74,7 @@ pub fn start_stream_rtp() {
         .stderr(Stdio::null())
         .spawn()
         .expect("Expected Camera command to succeed without error.");
+    let camera_process_id = camera_process.id();
 
     let ffmpeg_args = [
         "-i",
@@ -101,10 +92,12 @@ pub fn start_stream_rtp() {
     Command::new("ffmpeg")
         .args(ffmpeg_args)
         .stdin(Stdio::from(camera_process.stdout.unwrap()))
-        // .stdout(Stdio::null())
-        // .stderr(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
         .spawn()
         .expect("FFMPEG video processing process completed successfully.");
+
+    return camera_process_id
 }
 
 #[allow(dead_code)]

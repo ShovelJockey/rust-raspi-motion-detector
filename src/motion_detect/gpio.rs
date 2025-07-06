@@ -115,10 +115,10 @@ pub fn monitor_loop_record(motion_detector: &MotionDetector) {
 pub fn monitor_loop_stream(motion_detector: &MotionDetector) {
     println!("Starting camera in streaming mode.");
     let mut is_motion: bool;
-    let mut stream_process = camera::camera::start_stream_webrtc();
+    let stream_process_id = camera::camera::start_stream_rtp();
     loop {
         if *motion_detector.is_shutdown.read().unwrap() {
-            stream_process.kill().expect("stream process cleanly exits");
+            camera::camera::shutdown_cam_process(stream_process_id);
             *motion_detector.cam_type.write().unwrap() = None;
             *motion_detector.is_shutdown.write().unwrap() = false;
             break;

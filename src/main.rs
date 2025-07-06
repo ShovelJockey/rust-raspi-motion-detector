@@ -33,7 +33,6 @@ async fn main() {
     .expect("Valid https certs");
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3001));
-    camera::camera::start_stream_rtp();
     println!("started");
     axum_server::bind_rustls(addr, config)
         .serve(app.into_make_service())
