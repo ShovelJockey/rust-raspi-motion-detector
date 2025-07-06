@@ -1,12 +1,94 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stream</title>
-    <link rel="shortcut icon" href="#">
+    <title>WebRTC RTP Stream</title>
 </head>
+
 <body>
-    <iframe src="https://192.168.0.40:8889/cam" title="Live Stream" scrolling="no" style="border:none;" width="80%" height="80%"></iframe>
+    <h1>WebRTC RTP Stream</h1>
+    Video<br />
+    <div id="remoteVideos"></div> <br />
+    Logs<br />
+    <div id="div"></div>
+
+    <script type="module">
+        function createWebSocket(url) {
+            return new Promise((resolve, reject) => {
+                const socket = new WebSocket(url);
+                
+                socket.onopen = () => resolve(socket);
+                socket.onerror = (err) => reject(err);
+            });
+        }
+        const socket = await createWebSocket("wss://192.168.0.40:3001/ws");
+        
+        socket.addEventListener("open", (event) => {
+            console.log("Connection established");
+            socket.send("Initial data");
+        });
+
+        let pc = new RTCPeerConnection({
+            iceServers: [
+                { urls: "stun:stun.l.google.com:19302" }
+            ]
+        });
+
+        pc.ontrack = function (event) {
+            console.log("found track: ", event);
+            var el = document.createElement(event.track.kind);
+            document.getElementById("remoteVideos").appendChild(el);
+            const [remoteStream] = event.streams;
+            el.srcObject = remoteStream;
+            el.autoplay = true;
+            el.controls = true;
+        };
+        pc.oniceconnectionstatechange = () => {
+            console.log("ICE connection state:", pc.iceConnectionState);
+        };
+        pc.onicegatheringstatechange = () => {
+            console.log("ICE gathering state:", pc.iceGatheringState);
+        };
+
+        pc.addTransceiver("video", { "direction": "recvonly" });
+
+        pc.onicecandidate = (event) => {
+            if (event.candidate) {
+                console.log("New ICE candidate:", event.candidate);
+                let json_data = {"type": "IceCandidate", "candidate": event.candidate}
+                socket.send(JSON.stringify(json_data))
+            } else {
+                console.log("Empty candidate");
+            }
+        };
+
+        socket.addEventListener("message", async (event) => {
+            console.log(event);
+            const data = JSON.parse(event.data)
+            switch (data.type) {
+                case "answer":
+                    console.log("recieved answer from server");
+                    let remote_desc = new RTCSessionDescription(data);
+                    // bad answer?
+                    await pc.setRemoteDescription(data);
+                    break;
+                case "ice_candidate":
+                    console.log("recieved candidate from server");
+                    let ice_candidate = new RTCIceCandidate(data.candidate);
+                    await pc.addIceCandidate(ice_candidate);
+                    break;
+            }
+        });
+
+        socket.addEventListener("close", (event) => {
+            console.log("Connection closed");
+        });
+
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        let json_data = {"type": "Offer", "sdp": offer.sdp}
+        socket.send(JSON.stringify(json_data))
+    </script>
 </body>
+
 </html>

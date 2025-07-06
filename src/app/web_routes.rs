@@ -53,7 +53,7 @@ pub async fn motion_detector_controls() -> Result<Html<String>, (StatusCode, Str
 
 pub async fn watch_stream() -> Result<Html<String>, (StatusCode, String)> {
     let html_content =
-        match read_to_string("/home/jamie/coding/rust-raspi-motion-detector/frontend/stream.html")
+        match read_to_string("/home/jamie/coding/rust-raspi-motion-detector/frontend/watch_stream.html")
             .await
         {
             Ok(content) => content,
