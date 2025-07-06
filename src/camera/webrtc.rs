@@ -2,31 +2,24 @@ use anyhow::Result;
 use axum::{
     extract::ws::{Message, WebSocket, WebSocketUpgrade},
     response::Response,
-    Json,
 };
-use base64::prelude::BASE64_STANDARD;
-use base64::Engine;
 use futures_util::{SinkExt, StreamExt};
-use http::StatusCode;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::{net::UdpSocket, spawn, sync::Mutex};
 use webrtc::{
     api::{
         interceptor_registry::register_default_interceptors,
-        media_engine::{MediaEngine, MIME_TYPE_H264, MIME_TYPE_VP8},
+        media_engine::{MediaEngine, MIME_TYPE_H264},
         APIBuilder, API,
     },
-    ice::candidate::Candidate,
     ice_transport::{
         ice_candidate::{RTCIceCandidate, RTCIceCandidateInit},
-        ice_connection_state::RTCIceConnectionState,
         ice_server::RTCIceServer,
     },
     interceptor::registry::Registry,
     peer_connection::{
-        self, configuration::RTCConfiguration, peer_connection_state::RTCPeerConnectionState,
-        sdp::session_description::RTCSessionDescription,
+        configuration::RTCConfiguration, sdp::session_description::RTCSessionDescription,
     },
     rtp_transceiver::rtp_codec::RTCRtpCodecCapability,
     track::track_local::{
@@ -34,8 +27,6 @@ use webrtc::{
     },
     Error,
 };
-
-use crate::camera::camera;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -48,7 +39,7 @@ enum ClientMessage {
 struct CandidateFormat {
     #[serde(rename = "type")]
     data_type: String,
-    candidate: RTCIceCandidateInit
+    candidate: RTCIceCandidateInit,
 }
 
 pub async fn ws_handler(ws: WebSocketUpgrade) -> Response {
@@ -121,9 +112,9 @@ async fn handle_socket(socket: WebSocket) {
                 let candidate_json = candidate
                     .to_json()
                     .expect("Candidate to be json serialised");
-                let formatted_candidate = CandidateFormat{
+                let formatted_candidate = CandidateFormat {
                     data_type: "ice_candidate".to_string(),
-                    candidate: candidate_json
+                    candidate: candidate_json,
                 };
                 let candidate_string = serde_json::to_string(&formatted_candidate)
                     .expect("candidate json to be string serialised");
@@ -193,19 +184,6 @@ async fn handle_socket(socket: WebSocket) {
     track_writer.abort();
 }
 
-pub async fn offer_handler(
-    Json(offer): Json<RTCSessionDescription>,
-) -> Result<Json<RTCSessionDescription>, (StatusCode, String)> {
-    // camera::start_stream_rtp();
-    let offer_sdp = offer.sdp.clone();
-    let offer_sdp_type = offer.sdp_type.clone();
-    println!("offer sdp: {offer_sdp}, sdp type: {offer_sdp_type}");
-    match handle_offer(offer).await {
-        Ok(answer) => Ok(Json(answer)),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
-}
-
 fn build_api() -> API {
     let mut m = MediaEngine::default();
 
@@ -221,86 +199,4 @@ fn build_api() -> API {
         .with_media_engine(m)
         .with_interceptor_registry(registry)
         .build()
-}
-
-async fn start_writing_track(video_track: Arc<TrackLocalStaticRTP>) {
-    let udp_socket = UdpSocket::bind("127.0.0.1:5004").await.unwrap();
-
-    tokio::spawn(async move {
-        let mut inbound_rtp_packet = vec![0u8; 1500]; // UDP MTU
-        while let Ok((n, _)) = udp_socket.recv_from(&mut inbound_rtp_packet).await {
-            println!("packet length: {n}");
-            if let Err(err) = video_track.write(&inbound_rtp_packet[..n]).await {
-                if Error::ErrClosedPipe == err {
-                    println!("The peer conn has been closed");
-                } else {
-                    println!("video_track write err: {err}");
-                }
-                return;
-            }
-        }
-    });
-}
-
-async fn handle_offer(
-    offer: RTCSessionDescription,
-) -> Result<RTCSessionDescription, Box<dyn std::error::Error>> {
-    let api = build_api();
-
-    let config = RTCConfiguration {
-        ice_servers: vec![RTCIceServer {
-            urls: vec!["stun:stun.l.google.com:19302".to_owned()],
-            ..Default::default()
-        }],
-        ..Default::default()
-    };
-
-    let peer_conn = Arc::new(
-        api.new_peer_connection(config)
-            .await
-            .expect("new peer connection"),
-    );
-
-    let video_track = Arc::new(TrackLocalStaticRTP::new(
-        RTCRtpCodecCapability {
-            mime_type: MIME_TYPE_VP8.to_owned(),
-            ..Default::default()
-        },
-        "video".to_owned(),
-        "webrtc-rs".to_owned(),
-    ));
-
-    let rtp_sender = peer_conn
-        .add_track(Arc::clone(&video_track) as Arc<dyn TrackLocal + Send + Sync>)
-        .await
-        .expect("add track to peer connection");
-
-    spawn(async move {
-        let mut rtcp_buf = vec![0u8; 1500];
-        while let Ok((_, _)) = rtp_sender.read(&mut rtcp_buf).await {}
-        Result::<()>::Ok(())
-    });
-
-    peer_conn
-        .set_remote_description(offer)
-        .await
-        .expect("set the remote description");
-
-    let answer = peer_conn.create_answer(None).await.expect("create answer");
-
-    let mut gather_complete = peer_conn.gathering_complete_promise().await;
-
-    peer_conn
-        .set_local_description(answer.clone())
-        .await
-        .expect("set local description");
-
-    let _ = gather_complete.recv().await;
-
-    start_writing_track(video_track).await;
-
-    let str_answer = answer.sdp.clone();
-    println!("answer: {str_answer}");
-
-    Ok(answer)
 }

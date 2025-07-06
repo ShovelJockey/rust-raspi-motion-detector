@@ -67,9 +67,15 @@ pub fn start_stream_webrtc() -> Child {
 
 pub fn start_stream_rtp() {
     let command_args = [
-        "-t", "0", "-n", "--inline", "--listen", "--libav-format",
+        "-t",
+        "0",
+        "-n",
+        "--inline",
+        "--listen",
+        "--libav-format",
         "h264",
-        "-o", "-",
+        "-o",
+        "-",
     ];
 
     let camera_process = Command::new("rpicam-vid")
