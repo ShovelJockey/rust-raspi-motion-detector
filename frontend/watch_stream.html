@@ -13,6 +13,9 @@
     <div id="div"></div>
 
     <script type="module">
+        let socket;
+        let pc;
+
         function createWebSocket(url) {
             return new Promise((resolve, reject) => {
                 const socket = new WebSocket(url);
@@ -21,14 +24,32 @@
                 socket.onerror = (err) => reject(err);
             });
         }
-        const socket = await createWebSocket("wss://192.168.0.40:3001/ws");
+
+        async function cleanupConnections() {
+            if (pc) {
+                pc.close();
+                pc = null;
+            }
+            
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({type: "ClientDisconnect"}));
+                socket.close();
+                socket = null;
+            }
+        }
+
+        window.addEventListener('beforeunload', async (event) => {
+            await cleanupConnections();
+        });
+
+        socket = await createWebSocket("wss://192.168.0.40:3001/ws");
         
         socket.addEventListener("open", (event) => {
             console.log("Connection established");
             socket.send("Initial data");
         });
 
-        let pc = new RTCPeerConnection({
+        pc = new RTCPeerConnection({
             iceServers: [
                 { urls: "stun:stun.l.google.com:19302" }
             ]
@@ -69,7 +90,6 @@
                 case "answer":
                     console.log("recieved answer from server");
                     let remote_desc = new RTCSessionDescription(data);
-                    // bad answer?
                     await pc.setRemoteDescription(data);
                     break;
                 case "ice_candidate":
