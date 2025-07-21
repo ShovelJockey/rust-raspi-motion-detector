@@ -97,7 +97,7 @@ pub fn start_stream_rtp() -> u32 {
         .spawn()
         .expect("FFMPEG video processing process completed successfully.");
 
-    return camera_process_id
+    return camera_process_id;
 }
 
 #[allow(dead_code)]

@@ -1,9 +1,10 @@
 use crate::motion_detect::gpio::MotionDetector;
 use axum_server::tls_rustls::RustlsConfig;
 use dotenvy::dotenv;
-use std::{net::SocketAddr, path::PathBuf};
+use std::{env::var, fs::File, io::stdout, net::SocketAddr, path::PathBuf};
 use tokio;
 use tokio_rustls::rustls;
+use tracing_subscriber::{fmt::layer, prelude::*, registry};
 
 pub mod app;
 mod camera;
@@ -16,6 +17,15 @@ async fn main() {
     rustls::crypto::ring::default_provider()
         .install_default()
         .unwrap();
+
+    // let file_dir = var("LOG_PATH").unwrap_or("/log.logfile".to_string());
+    // let log_file = match File::create_new(&file_dir) {
+    //     Ok(file) => file,
+    //     Err(_) => File::open(&file_dir).expect("Open already existing file"),
+    // };
+    let trace_layer = layer().pretty().with_writer(stdout);
+    registry().with(trace_layer).init();
+
     let motion_detector = MotionDetector::new(4);
     let app = app::app::create_app(motion_detector).await;
 

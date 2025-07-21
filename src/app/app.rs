@@ -10,20 +10,11 @@ use axum::{
     BoxError, Router,
 };
 use axum_extra::extract::Host;
-use std::{env::var, fs::File, net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc};
 use tower_http::services::ServeDir;
-use tracing_subscriber::{fmt::layer, prelude::*, registry};
 
 pub async fn create_app(motion_detector: MotionDetector) -> Router {
     let thread_pool = ThreadPool::new(20).await;
-
-    let file_dir = var("LOG_PATH").unwrap_or("/log.logfile".to_string());
-    let file = match File::create_new(&file_dir) {
-        Ok(file) => file,
-        Err(_) => File::open(&file_dir).expect("Open already existing file"),
-    };
-    let trace_layer = layer().pretty().with_writer(file);
-    registry().with(trace_layer).init();
 
     let session_store = middleware::build_session_layer().await;
 
