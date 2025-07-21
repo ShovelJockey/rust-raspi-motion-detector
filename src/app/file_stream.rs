@@ -12,6 +12,7 @@ use tokio::{
     io::{AsyncReadExt, AsyncSeekExt},
 };
 use tokio_util::io::ReaderStream;
+use tracing::debug;
 
 #[derive(Debug)]
 pub struct FileStream<S> {
@@ -73,7 +74,7 @@ where
         let mut resp = Response::builder().header(header::CONTENT_TYPE, "video/mp4");
         resp = resp.status(StatusCode::PARTIAL_CONTENT);
 
-        println!("bytes {start}-{end}/{total_size}");
+        debug!("bytes {start}-{end}/{total_size}");
         resp = resp.header(
             header::CONTENT_RANGE,
             format!("bytes {start}-{end}/{total_size}"),
@@ -103,7 +104,7 @@ where
         // get file metadata
         let metadata = file.metadata().await?;
         let total_size = metadata.len();
-        println!("total size: {total_size}");
+        debug!("total size: {total_size}");
 
         if end == 0 {
             end = total_size - 1;

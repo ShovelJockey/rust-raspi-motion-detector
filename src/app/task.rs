@@ -9,6 +9,7 @@ use std::{
 };
 use tokio::{fs::File, time::sleep};
 use tokio_util::io::ReaderStream;
+use tracing::{error, info};
 
 pub struct ThreadPool {
     threads: Vec<ThreadWorker>,
@@ -66,7 +67,7 @@ impl ThreadPool {
 impl Drop for ThreadPool {
     fn drop(&mut self) {
         for worker in &mut self.threads {
-            println!("Shutting down worker: {}", worker.id);
+            info!("Shutting down worker: {}", worker.id);
 
             if let Some(thread) = worker.thread.take() {
                 thread.abort();
@@ -96,7 +97,7 @@ impl ThreadWorker {
                 let queue_pop = match file_queue.lock() {
                     Ok(mut queue) => queue.pop(),
                     Err(error) => {
-                        println!("Error accessing Mutex file queue for threadworker: {id}, error: {error}");
+                        error!("Error accessing Mutex file queue for threadworker: {id}, error: {error}");
                         break;
                     }
                 };
@@ -114,12 +115,12 @@ impl ThreadWorker {
 
                 match file_stream {
                     Ok(stream) => {
-                        println!("Worker {id} finished preparing stream.");
+                        info!("Worker {id} finished preparing stream.");
                         result_queue.lock().unwrap().push(stream);
                         thread_running_task.store(false, Ordering::Relaxed);
                     }
                     Err(_) => {
-                        println!("Worker {id} encountered error building stream.");
+                        error!("Worker {id} encountered error building stream.");
                         break;
                     }
                 }

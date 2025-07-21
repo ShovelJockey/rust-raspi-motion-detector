@@ -4,6 +4,7 @@ use dotenvy::dotenv;
 use std::{env::var, fs::File, io::stdout, net::SocketAddr, path::PathBuf};
 use tokio;
 use tokio_rustls::rustls;
+use tracing::info;
 use tracing_subscriber::{fmt::layer, prelude::*, registry};
 
 pub mod app;
@@ -43,21 +44,9 @@ async fn main() {
     .expect("Valid https certs");
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3001));
-    println!("started");
+    info!("started");
     axum_server::bind_rustls(addr, config)
         .serve(app.into_make_service())
         .await
         .unwrap();
 }
-
-// double check security measures are ok
-// improve redirect to login
-// improve https redirect
-
-// implement manual udp to webrtc stream
-
-// add --low-latency to recording?
-
-// add css styling
-// adjust env/path usage to be less specific to current pi system
-// look into doing webrtc myself in rust

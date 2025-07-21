@@ -26,6 +26,7 @@ use std::{
 };
 use tokio::fs::File;
 use tokio_util::io::ReaderStream;
+use tracing::{debug, error};
 
 impl Display for CameraType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -188,12 +189,11 @@ pub async fn stream(file_name: Query<FileName>, headers: HeaderMap) -> Response 
         .get(header::RANGE)
         .and_then(|value| value.to_str().ok());
 
-    println!("range headers: {range_header:?}");
     let ranges = http_range_header::parse_range_header(range_header.unwrap());
     let valid_ranges = match ranges {
         Ok(range) => range,
         Err(err) => {
-            println!("Error parsing range, error: {err}");
+            error!("Error parsing range, error: {err}");
             return (StatusCode::RANGE_NOT_SATISFIABLE, "Invalid Range").into_response();
         }
     };
@@ -206,7 +206,7 @@ pub async fn stream(file_name: Query<FileName>, headers: HeaderMap) -> Response 
         EndPosition::Index(val) => val,
         EndPosition::LastByte => 0,
     };
-    println!("start and end headers parsed: {start}, {end}");
+
     let file_name = &file_name.filename;
     let file_dir = var("VIDEO_SAVE_PATH").unwrap_or("/home".to_string());
     let formated_path = format!("{file_dir}/{file_name}");
@@ -224,7 +224,7 @@ pub async fn get_all_videos_data(videos_since: Query<VideosSince>) -> Response {
     match ffmpeg_next::init() {
         Ok(()) => {}
         Err(err) => {
-            println!("Encountered error: {err} trying to init ffmpeg");
+            error!("Encountered error: {err} trying to init ffmpeg");
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
@@ -271,9 +271,9 @@ pub async fn start_download(
     };
     for file in paths.filter_map(Result::ok) {
         let file_created = file.metadata().unwrap().created().unwrap();
-        println!("found file {}", &file.display());
+        debug!("found file {}", &file.display());
         if file_created >= time_delta {
-            println!("adding file to queue");
+            debug!("adding file to queue");
             thread_pool.queue_file(file).await;
         }
     }

@@ -3,11 +3,13 @@ use chrono::prelude::*;
 use rppal::gpio::Mode::Input;
 use rppal::gpio::{Gpio, IoPin};
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::{
     sync::RwLock,
     thread::{self},
     time,
 };
+use tracing::info;
 
 pub struct SensorConfig {
     pub sensor_pin: IoPin,
@@ -47,7 +49,7 @@ pub struct MotionDetector {
 }
 
 impl MotionDetector {
-    pub fn new(pin_num: u8) -> MotionDetector {
+    pub fn new(pin_num: u8) -> Self {
         return MotionDetector {
             sensor_config: SensorConfig::new(pin_num),
             cam_type: RwLock::new(None),
@@ -76,15 +78,15 @@ impl MotionDetector {
 }
 
 pub fn monitor_loop_record(motion_detector: &MotionDetector) {
-    println!("Starting motion sensor camera in monitor mode.");
+    info!("Starting motion sensor camera in monitor mode.");
     let mut is_motion: bool;
     let mut is_recording = false;
     let mut camera_process_id: Option<u32> = None;
     loop {
         if *motion_detector.is_shutdown.read().unwrap() {
-            println!("shutdown ordered");
+            info!("shutdown ordered");
             if is_recording {
-                println!("ending current recording");
+                info!("ending current recording");
                 camera::camera::shutdown_cam_process(camera_process_id.unwrap());
             }
             *motion_detector.cam_type.write().unwrap() = None;
@@ -93,15 +95,15 @@ pub fn monitor_loop_record(motion_detector: &MotionDetector) {
         }
         is_motion = motion_detector.is_motion();
         if is_motion && !is_recording {
-            println!("Motion detected starting camera");
+            info!("Motion detected starting camera");
             camera_process_id = Some(camera::camera::start_recording());
             is_recording = true;
             thread::sleep(time::Duration::from_secs(5));
         } else if is_motion && is_recording {
-            println!("Motion detected camera already recording");
+            info!("Motion detected camera already recording");
             thread::sleep(time::Duration::from_secs(1));
         } else if !is_motion && is_recording {
-            println!("No motion detected stopping recording");
+            info!("No motion detected stopping recording");
             if camera_process_id.is_none() {
                 panic!("Error is_recording evaluates to true but camera process id is none");
             }
@@ -113,7 +115,7 @@ pub fn monitor_loop_record(motion_detector: &MotionDetector) {
 }
 
 pub fn monitor_loop_stream(motion_detector: &MotionDetector) {
-    println!("Starting camera in streaming mode.");
+    info!("Starting camera in streaming mode.");
     let mut is_motion: bool;
     let stream_process_id = camera::camera::start_stream_rtp();
     loop {
@@ -126,7 +128,34 @@ pub fn monitor_loop_stream(motion_detector: &MotionDetector) {
         is_motion = motion_detector.is_motion();
         if is_motion {
             let current_time = Utc::now().to_string();
-            println!("Motion detected at {current_time}");
+            info!("Motion detected at {current_time}");
         }
     }
 }
+
+// struct SoundSensor {
+//     sensor_config: SensorConfig,
+//     pub is_shutdown: RwLock<bool>,
+//     pub recorded_sounds: HashMap<u32, String>,
+// }
+
+// impl SoundSensor {
+//     fn new(pin_num: u8) -> Self {
+//         SoundSensor {
+//             sensor_config: SensorConfig::new(pin_num),
+//             is_shutdown: RwLock::new(false),
+//             recorded_sounds: HashMap::new(),
+//         }
+//     }
+
+//     fn is_high(&self) -> bool {
+//         self.sensor_config.sensor_pin.is_high()
+//     }
+
+//     // want to save this on shutdown, how to store? redis? how to display? webpage?
+//     fn record_sound(&self) {
+//         // record instance of sound detect in that hour
+//         let current_hour = Utc::now().hour();
+//         &self.recorded_sounds;
+//     }
+// }

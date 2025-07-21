@@ -7,6 +7,7 @@ use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::{net::UdpSocket, spawn, sync::Mutex};
+use tracing::{debug, error, info};
 use webrtc::{
     api::{
         interceptor_registry::register_default_interceptors,
@@ -91,12 +92,12 @@ async fn handle_socket(socket: WebSocket) {
     let track_writer = spawn(async move {
         let mut inbound_rtp_packet = vec![0u8; 1500]; // UDP MTU
         while let Ok((n, _)) = udp_socket.recv_from(&mut inbound_rtp_packet).await {
-            println!("packet length: {n}");
+            debug!("packet length: {n}");
             if let Err(err) = video_track.write(&inbound_rtp_packet[..n]).await {
                 if Error::ErrClosedPipe == err {
-                    println!("The peer conn has been closed");
+                    error!("The peer conn has been closed");
                 } else {
-                    println!("video_track write err: {err}");
+                    error!("video_track write err: {err}");
                 }
                 return;
             }
@@ -108,7 +109,7 @@ async fn handle_socket(socket: WebSocket) {
         let ice_sender_clone = ice_sender.clone();
         Box::pin(async move {
             if let Some(candidate) = candidate {
-                println!("New ICE candidate: {:?}", candidate);
+                info!("New ICE candidate: {:?}", candidate);
                 let candidate_json = candidate
                     .to_json()
                     .expect("Candidate to be json serialised");
@@ -133,7 +134,7 @@ async fn handle_socket(socket: WebSocket) {
                 match client_message {
                     ClientMessage::Offer { sdp } => {
                         let raw_offer = sdp.clone();
-                        println!("raw offer: {raw_offer}");
+                        debug!("raw offer: {raw_offer}");
                         match RTCSessionDescription::offer(sdp) {
                             Ok(offer) => {
                                 peer_conn
@@ -148,7 +149,7 @@ async fn handle_socket(socket: WebSocket) {
                                     .await
                                     .expect("local desc set");
                                 let raw_answer = answer.sdp.clone();
-                                println!("raw answer: {raw_answer}");
+                                debug!("raw answer: {raw_answer}");
                                 let json_string_answer =
                                     serde_json::to_string(&answer).expect("answer working format");
                                 let mut answer_sender = sender.lock().await;
@@ -158,7 +159,7 @@ async fn handle_socket(socket: WebSocket) {
                                     .expect("replied with answer");
                             }
                             Err(err) => {
-                                println!("Error with browser SDP, error: {err}")
+                                error!("Error with browser SDP, error: {err}")
                             }
                         }
                     }
@@ -171,7 +172,7 @@ async fn handle_socket(socket: WebSocket) {
                                     .expect("set ice candidate");
                             }
                             Err(err) => {
-                                println!("failed to parse incoming candidate string as ice candidate, err: {err}")
+                                error!("failed to parse incoming candidate string as ice candidate, err: {err}")
                             }
                         }
                     }
@@ -179,7 +180,7 @@ async fn handle_socket(socket: WebSocket) {
             }
         }
     }
-    println!("socket closed");
+    info!("socket closed");
     buff_reader.abort();
     track_writer.abort();
 }

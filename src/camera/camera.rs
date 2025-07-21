@@ -14,7 +14,7 @@ pub fn start_recording() -> u32 {
     let time = start.duration_since(UNIX_EPOCH).unwrap().as_secs();
     let save_path = var("VIDEO_SAVE_PATH").unwrap_or("/home".to_string());
     let output = format!("{save_path}/motion_{time:?}.mp4");
-    println!("save arg: {output}");
+
     let rpicam_args = [
         "-t",
         "0",
