@@ -1,8 +1,0 @@
-paths:
-  cam:
-    source: rpiCamera
-    sourceOnDemand: yes
-
-webrtcEncryption: yes
-webrtcServerCert: /home/jamie/coding/rust-raspi-motion-detector/self_signed_certs/cert.pem
-webrtcServerKey: /home/jamie/coding/rust-raspi-motion-detector/self_signed_certs/key.pem
