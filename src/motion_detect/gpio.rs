@@ -3,7 +3,7 @@ use chrono::prelude::*;
 use rppal::gpio::Mode::Input;
 use rppal::gpio::{Gpio, IoPin};
 use serde::Deserialize;
-use std::collections::HashMap;
+// use std::collections::HashMap;
 use std::{
     sync::RwLock,
     thread::{self},

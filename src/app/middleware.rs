@@ -44,7 +44,6 @@ pub async fn auth_login(session: Session, Form(login_form): Form<LoginForm>) -> 
     if pwd != login_form.password.to_lowercase() {
         return (axum::http::StatusCode::UNAUTHORIZED, "Bad password").into_response();
     }
-    let id = session.id().unwrap_or_default();
 
     let time = Utc::now().timestamp();
     match session.insert("session_started", time).await {
