@@ -17,7 +17,7 @@ use tracing_subscriber::{fmt::layer, prelude::*, registry};
 pub async fn create_app(motion_detector: MotionDetector) -> Router {
     let thread_pool = ThreadPool::new(20).await;
 
-    let file_dir = var("LOG_PATH").unwrap_or("/home".to_string());
+    let file_dir = var("LOG_PATH").unwrap_or("/log.logfile".to_string());
     let file = match File::create_new(&file_dir) {
         Ok(file) => file,
         Err(_) => File::open(&file_dir).expect("Open already existing file"),
