@@ -42,16 +42,32 @@
             await cleanupConnections();
         });
 
-        socket = await createWebSocket("wss://192.168.0.40:3001/ws");
+        socket = await createWebSocket("wss://192.168.0.252:3001/ws");
         
         socket.addEventListener("open", (event) => {
             console.log("Connection established");
             socket.send("Initial data");
         });
-
+        
+        let turn_config;
+        fetch("https://192.168.0.252/turn_config")
+            .then(response => response.json())
+            .then(data => {
+                console.log(data);
+                turn_config = data;
+            })
+            .catch(error => {
+                console.error("Error fetching data:", error);
+            })
+        
         pc = new RTCPeerConnection({
             iceServers: [
-                { urls: "stun:stun.l.google.com:19302" }
+                { urls: "stun:stun.l.google.com:19302" },
+                { 
+                    urls: turn_config.urls,
+                    username: turn_config.username,
+                    credential: turn_config.password
+                }
             ]
         });
 
