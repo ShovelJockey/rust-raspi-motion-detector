@@ -11,11 +11,10 @@ use axum::{
 };
 use axum_extra::extract::Host;
 use std::{net::SocketAddr, sync::Arc};
-use tower_http::services::ServeDir;
+use tower_http::{services::ServeDir};
 
 pub async fn create_app(motion_detector: MotionDetector) -> Router {
     let thread_pool = ThreadPool::new(20).await;
-
     let session_store = middleware::build_session_layer().await;
 
     let app = Router::new()
@@ -28,6 +27,7 @@ pub async fn create_app(motion_detector: MotionDetector) -> Router {
         .with_state(Arc::new(thread_pool))
         .route("/file", get(routes::stream))
         .route("/video_data", get(routes::get_all_videos_data))
+        .route("/turn_config", get(routes::get_turn_config))
         .route("/dashboard", get(web_routes::index))
         .route("/play_videos", get(web_routes::play_videos))
         .route("/watch_stream", get(web_routes::watch_stream))

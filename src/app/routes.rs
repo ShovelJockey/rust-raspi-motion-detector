@@ -86,6 +86,13 @@ impl VideoData {
     }
 }
 
+#[derive(Deserialize, Serialize)]
+struct TurnConfig {
+    urls: Vec<String>,
+    username: String,
+    password: String,
+}
+
 pub async fn init_camera(
     motion_detector: State<Arc<MotionDetector>>,
     cam_data: Query<CameraParam>,
@@ -290,4 +297,28 @@ pub async fn download_from_task(thread_pool: State<Arc<ThreadPool>>) -> Response
             .into_response();
     }
     stream.unwrap().into_response()
+}
+
+pub async fn get_turn_config() -> Response {
+    let urls = var("TURN_URLS");
+    let username = var("TURN_USER");
+    let password = var("TURN_PASS");
+    if urls.is_err() || username.is_err() || password.is_err() {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Error retrieving turn config",
+        ).into_response()
+    }
+
+    let urls = urls.unwrap().split(",").map(|s| s.to_string()).collect();
+    
+    let turnconfig = TurnConfig {
+        urls: urls,
+        username: username.unwrap(),
+        password: password.unwrap()
+    };
+    return  (
+        StatusCode::OK,
+        to_string(&turnconfig).unwrap()
+    ).into_response();
 }
