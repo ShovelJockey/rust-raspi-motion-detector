@@ -5,7 +5,7 @@ use axum::{
 };
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::{sync::Arc, env::var};
 use tokio::{net::UdpSocket, spawn, sync::Mutex};
 use tracing::{debug, error, info};
 use webrtc::{
@@ -53,11 +53,24 @@ async fn handle_socket(socket: WebSocket) {
 
     let api = build_api();
 
+    let unparsed_urls = var("TURN_URL").unwrap();
+    let username = var("TURN_USER").unwrap();
+    let password = var("TURN_PASS").unwrap();
+
+    let turn_urls = unparsed_urls.split(",").map(|s| s.to_string()).collect();
+
     let config = RTCConfiguration {
-        ice_servers: vec![RTCIceServer {
-            urls: vec!["stun:stun.l.google.com:19302".to_owned()],
-            ..Default::default()
-        }],
+        ice_servers: vec![
+            RTCIceServer {
+                urls: vec!["stun:stun.l.google.com:19302".to_owned()],
+                ..Default::default()
+            },
+            RTCIceServer {
+                urls: turn_urls,
+                username: username,
+                credential: password
+            }
+        ],
         ..Default::default()
     };
 
