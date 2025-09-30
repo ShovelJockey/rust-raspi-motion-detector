@@ -1,4 +1,4 @@
-import { SERVER_ADDR } from "./config";
+import { SERVER_ADDR } from "./config.js";
 
 
 export function generateLinks() {

@@ -13,6 +13,7 @@
     <div id="div"></div>
 
     <script type="module">
+        import { SERVER_ADDR } from "/static/config.js";
         let socket;
         let pc;
 
@@ -49,16 +50,11 @@
             socket.send("Initial data");
         });
         
-        let turn_config;
-        fetch("https://192.168.0.252/turn_config")
-            .then(response => response.json())
-            .then(data => {
-                console.log(data);
-                turn_config = data;
-            })
-            .catch(error => {
-                console.error("Error fetching data:", error);
-            })
+        const response = await fetch(`${SERVER_ADDR}/turn_config`).catch(error => {
+            console.error("Error fetching turn config:", error);
+        });
+
+        const turn_config = await response.json();
         
         pc = new RTCPeerConnection({
             iceServers: [

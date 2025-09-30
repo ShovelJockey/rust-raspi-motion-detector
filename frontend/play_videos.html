@@ -8,6 +8,7 @@
 </head>
 <body>
     <script type="module">
+        import { SERVER_ADDR } from "/static/config.js";
         import { generateLinks } from "/static/script.js"
         let videos_since = document.getElementById("video_since_id");
         videos_since.oninput = function() {
@@ -20,6 +21,6 @@
     </div>
     <div id="links-container">
     </div>
-    <a href="https://192.168.0.252:3001/dashboard">Back to mainpage</a>
+    <a href="/dashboard">Back to mainpage</a>
 </body>
 </html>

@@ -10,6 +10,7 @@
     <div id="current_status" class="current_status">
     </div>
     <script type="module">
+        import { SERVER_ADDR } from "/static/config.js";
         import { get_cam_status, start_recording_mode, start_streaming_mode, stop_camera } from "/static/script.js"
         document.addEventListener("DOMContentLoaded", () => {
         get_cam_status()});
@@ -27,7 +28,7 @@
     <div>
         <button type="button" id="shutdownBtn">Stop camera</button>
     </div>
-    <a href="https://192.168.0.252:3001/play_videos">Watch recorded videos</a>
-    <a href="https://192.168.0.252:3001/dashboard">Back to mainpage</a>
+    <a href="/play_videos">Watch recorded videos</a>
+    <a href="/dashboard">Back to mainpage</a>
 </body>
 </html>
