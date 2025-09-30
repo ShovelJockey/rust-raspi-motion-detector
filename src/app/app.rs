@@ -1,6 +1,6 @@
 use crate::app::{middleware, routes, task::ThreadPool, web_routes};
-use crate::camera::webrtc::ws_handler;
 use crate::motion_detect::gpio::MotionDetector;
+use crate::streaming::webrtc::ws_handler;
 use axum::{
     handler::HandlerWithoutStateExt,
     http::{uri::Authority, StatusCode, Uri},
@@ -11,7 +11,7 @@ use axum::{
 };
 use axum_extra::extract::Host;
 use std::{net::SocketAddr, sync::Arc};
-use tower_http::{services::ServeDir};
+use tower_http::services::ServeDir;
 
 pub async fn create_app(motion_detector: MotionDetector) -> Router {
     let thread_pool = ThreadPool::new(20).await;
