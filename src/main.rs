@@ -1,4 +1,5 @@
 use crate::motion_detect::gpio::MotionDetector;
+use crate::streaming::turn;
 use axum_server::tls_rustls::RustlsConfig;
 use dotenvy::dotenv;
 use std::{env::var, fs::File, io::stdout, net::SocketAddr, path::PathBuf};
@@ -10,6 +11,7 @@ use tracing_subscriber::{fmt::layer, prelude::*, registry};
 pub mod app;
 mod camera;
 pub mod motion_detect;
+mod streaming;
 
 #[tokio::main]
 async fn main() {
@@ -42,6 +44,10 @@ async fn main() {
     )
     .await
     .expect("Valid https certs");
+
+    let _turn_server = turn::create_turn_server()
+        .await
+        .expect("turn server starts successfully");
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3001));
     info!("started");
