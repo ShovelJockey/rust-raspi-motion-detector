@@ -67,13 +67,13 @@ pub async fn create_turn_server() -> Result<Server, Error> {
 
     let server_config = ServerConfig {
         conn_configs: vec![conn_config],
-        realm: "0.0.0.0".to_string(),
+        realm: public_ip,
         auth_handler,
         channel_bind_timeout: Duration::from_secs(0),
         alloc_close_notify: None,
     };
 
     let server = Server::new(server_config).await?;
-
+    debug!("Turn server starded without error");
     Ok(server)
 }

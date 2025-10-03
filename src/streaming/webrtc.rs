@@ -53,7 +53,7 @@ async fn handle_socket(socket: WebSocket) {
 
     let api = build_api();
 
-    // let unparsed_urls = var("TURN_URL").unwrap();
+    let turn_url = var("TURN_URL").unwrap();
     let username = var("TURN_USER").unwrap();
     let password = var("TURN_PASS").unwrap();
 
@@ -66,7 +66,7 @@ async fn handle_socket(socket: WebSocket) {
                 ..Default::default()
             },
             RTCIceServer {
-                urls: vec!["turn:0.0.0.0:3478".to_owned()],
+                urls: vec![turn_url],
                 username: username,
                 credential: password,
             },

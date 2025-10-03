@@ -56,3 +56,7 @@ async fn main() {
         .await
         .unwrap();
 }
+
+// Makes webrtc multiclient safe, might need to just have udp port bind in arc shared between websocket connections but might need more shared setup
+// IE sharing video writer?
+// Improve webrtc setup latency, might be an issue with ffmpeg i-frames?
