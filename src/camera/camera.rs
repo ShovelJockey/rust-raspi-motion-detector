@@ -61,6 +61,9 @@ pub fn start_stream_rtp() -> u32 {
         "-n",
         "--inline",
         "--listen",
+        "--low-latency",
+        "--width 1280",
+        "--height 720",
         "--libav-format",
         "h264",
         "-o",
@@ -76,16 +79,16 @@ pub fn start_stream_rtp() -> u32 {
     let camera_process_id = camera_process.id();
 
     let ffmpeg_args = [
-        "-i",
-        "-",
+        "-f",
+        "rtp",
         "-c:v",
         "libx264",
+        "-i",
+        "-",
         "-preset",
         "ultrafast",
         "-tune",
         "zerolatency",
-        "-f",
-        "rtp",
         "rtp://127.0.0.1:5004",
     ];
     Command::new("ffmpeg")
