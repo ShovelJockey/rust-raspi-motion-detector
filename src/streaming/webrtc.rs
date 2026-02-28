@@ -1,12 +1,13 @@
 use anyhow::Result;
 use axum::{
-    extract::ws::{Message, WebSocket, WebSocketUpgrade},
+    extract::{ws::{Message, WebSocket, WebSocketUpgrade}, State},
     response::Response,
 };
+use bytes::BytesMut;
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
-use std::{env::var, sync::Arc};
-use tokio::{net::UdpSocket, spawn, sync::Mutex};
+use std::{env::var, sync::{Arc, RwLock}};
+use tokio::{net::UdpSocket, spawn, sync::Mutex, task::JoinHandle};
 use tracing::{debug, error, info};
 use webrtc::{
     api::{
@@ -20,7 +21,7 @@ use webrtc::{
     },
     interceptor::registry::Registry,
     peer_connection::{
-        configuration::RTCConfiguration, sdp::session_description::RTCSessionDescription,
+        configuration::RTCConfiguration, sdp::session_description::RTCSessionDescription, RTCPeerConnection,
     },
     rtp_transceiver::rtp_codec::RTCRtpCodecCapability,
     track::track_local::{
@@ -43,51 +44,118 @@ struct CandidateFormat {
     candidate: RTCIceCandidateInit,
 }
 
-pub async fn ws_handler(ws: WebSocketUpgrade) -> Response {
-    ws.on_upgrade(|socket| handle_socket(socket))
+pub struct WebrtcState {
+    api: API,
+    video_track: Arc<TrackLocalStaticRTP>,
+    video_task: Arc<RwLock<Option<JoinHandle<()>>>>
 }
 
-async fn handle_socket(socket: WebSocket) {
+impl WebrtcState {
+    pub fn new() -> WebrtcState {
+        WebrtcState {
+            api: WebrtcState::build_api(),
+            video_track: Arc::new(WebrtcState::create_video_track()),
+            video_task: Arc::new(RwLock::new(None))
+        }
+    }
+
+    pub async fn new_peer_connection(&self) -> Arc<RTCPeerConnection> {
+        Arc::new(
+            self.api.new_peer_connection(WebrtcState::create_config())
+                .await
+                .expect("new peer connection"),
+        )
+    }
+
+    fn start_video_task(&self) {
+        if self.video_task.read().unwrap().is_none() {
+            debug!("Starting video writer task");
+            *self.video_task.write().unwrap() = Some(self.create_video_task());
+        }
+        debug!("Video task already started");
+    }
+
+    fn create_video_task(&self) -> JoinHandle<()> {
+        let task_track = self.video_track.clone();
+        spawn(async move {
+            let mut inbound_rtp_packet = BytesMut::with_capacity(1500); // UDP MTU
+            let udp_socket = UdpSocket::bind("127.0.0.1:5004").await.unwrap();
+            while let Ok((n, _)) = udp_socket.recv_from(&mut inbound_rtp_packet).await {
+                debug!("packet length: {n}");
+                if let Err(err) = task_track.write(&inbound_rtp_packet[..n]).await {
+                    if Error::ErrClosedPipe == err {
+                        error!("The peer conn has been closed");
+                    } else {
+                        error!("video_track write err: {err}");
+                    }
+                    return;
+                }
+            }
+        })
+    }
+
+    fn build_api() -> API {
+        let mut m = MediaEngine::default();
+    
+        m.register_default_codecs()
+            .expect("register default codecs");
+    
+        let mut registry = Registry::new();
+    
+        registry =
+            register_default_interceptors(registry, &mut m).expect("register default interceptors");
+    
+        APIBuilder::new()
+            .with_media_engine(m)
+            .with_interceptor_registry(registry)
+            .build()
+    }
+
+    fn create_video_track() -> TrackLocalStaticRTP {
+        TrackLocalStaticRTP::new(
+            RTCRtpCodecCapability {
+                mime_type: MIME_TYPE_H264.to_owned(),
+                ..Default::default()
+            },
+            "video".to_owned(),
+            "webrtc-rs".to_owned(),
+        )
+    }
+
+    fn create_config() -> RTCConfiguration {
+        let turn_url = var("TURN_URL").unwrap();
+        let username = var("TURN_USER").unwrap();
+        let password = var("TURN_PASS").unwrap();
+        RTCConfiguration {
+            ice_servers: vec![
+                RTCIceServer {
+                    urls: vec!["stun:stun.l.google.com:19302".to_owned()],
+                    ..Default::default()
+                },
+                RTCIceServer {
+                    urls: vec![turn_url],
+                    username: username,
+                    credential: password,
+                },
+            ],
+            ..Default::default()
+        }
+    }
+}
+
+pub async fn ws_handler(ws: WebSocketUpgrade, webrtc_state: State<Arc<WebrtcState>>) -> Response {
+    ws.on_upgrade(move |socket| handle_socket(socket, webrtc_state))
+}
+
+async fn handle_socket(socket: WebSocket, webrtc_state: State<Arc<WebrtcState>>) {
+    webrtc_state.start_video_task();
+
     let (sender, mut reciever) = socket.split();
     let sender = Arc::new(Mutex::new(sender));
 
-    let api = build_api();
+    let peer_conn = webrtc_state.new_peer_connection().await;
 
-    let turn_url = var("TURN_URL").unwrap();
-    let username = var("TURN_USER").unwrap();
-    let password = var("TURN_PASS").unwrap();
-
-    // let turn_urls = unparsed_urls.split(",").map(|s| s.to_string()).collect();
-
-    let config = RTCConfiguration {
-        ice_servers: vec![
-            RTCIceServer {
-                urls: vec!["stun:stun.l.google.com:19302".to_owned()],
-                ..Default::default()
-            },
-            RTCIceServer {
-                urls: vec![turn_url],
-                username: username,
-                credential: password,
-            },
-        ],
-        ..Default::default()
-    };
-
-    let peer_conn = Arc::new(
-        api.new_peer_connection(config)
-            .await
-            .expect("new peer connection"),
-    );
-
-    let video_track = Arc::new(TrackLocalStaticRTP::new(
-        RTCRtpCodecCapability {
-            mime_type: MIME_TYPE_H264.to_owned(),
-            ..Default::default()
-        },
-        "video".to_owned(),
-        "webrtc-rs".to_owned(),
-    ));
+    let video_track = webrtc_state.video_track.clone();
 
     let rtp_sender = peer_conn
         .add_track(Arc::clone(&video_track) as Arc<dyn TrackLocal + Send + Sync>)
@@ -95,26 +163,9 @@ async fn handle_socket(socket: WebSocket) {
         .expect("add track to peer connection");
 
     let buff_reader = spawn(async move {
-        let mut rtcp_buf = vec![0u8; 1500];
+        let mut rtcp_buf = BytesMut::with_capacity(1500);
         while let Ok((_, _)) = rtp_sender.read(&mut rtcp_buf).await {}
         Result::<()>::Ok(())
-    });
-
-    let udp_socket = UdpSocket::bind("127.0.0.1:5004").await.unwrap();
-
-    let track_writer = spawn(async move {
-        let mut inbound_rtp_packet = vec![0u8; 1500]; // UDP MTU
-        while let Ok((n, _)) = udp_socket.recv_from(&mut inbound_rtp_packet).await {
-            debug!("packet length: {n}");
-            if let Err(err) = video_track.write(&inbound_rtp_packet[..n]).await {
-                if Error::ErrClosedPipe == err {
-                    error!("The peer conn has been closed");
-                } else {
-                    error!("video_track write err: {err}");
-                }
-                return;
-            }
-        }
     });
 
     let ice_sender = sender.clone();
@@ -195,22 +246,4 @@ async fn handle_socket(socket: WebSocket) {
     }
     info!("socket closed");
     buff_reader.abort();
-    track_writer.abort();
-}
-
-fn build_api() -> API {
-    let mut m = MediaEngine::default();
-
-    m.register_default_codecs()
-        .expect("register default codecs");
-
-    let mut registry = Registry::new();
-
-    registry =
-        register_default_interceptors(registry, &mut m).expect("register default interceptors");
-
-    APIBuilder::new()
-        .with_media_engine(m)
-        .with_interceptor_registry(registry)
-        .build()
 }
