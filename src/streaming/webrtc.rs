@@ -3,6 +3,7 @@ use axum::{
     extract::{ws::{Message, WebSocket, WebSocketUpgrade}, State},
     response::Response,
 };
+use bytes::BytesMut;
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::{env::var, sync::{Arc, RwLock}};
@@ -77,7 +78,7 @@ impl WebrtcState {
     fn create_video_task(&self) -> JoinHandle<()> {
         let task_track = self.video_track.clone();
         spawn(async move {
-            let mut inbound_rtp_packet = vec![0u8; 1500]; // UDP MTU
+            let mut inbound_rtp_packet = BytesMut::with_capacity(1500); // UDP MTU
             let udp_socket = UdpSocket::bind("127.0.0.1:5004").await.unwrap();
             while let Ok((n, _)) = udp_socket.recv_from(&mut inbound_rtp_packet).await {
                 debug!("packet length: {n}");
@@ -162,7 +163,7 @@ async fn handle_socket(socket: WebSocket, webrtc_state: State<Arc<WebrtcState>>)
         .expect("add track to peer connection");
 
     let buff_reader = spawn(async move {
-        let mut rtcp_buf = vec![0u8; 1500];
+        let mut rtcp_buf = BytesMut::with_capacity(1500);
         while let Ok((_, _)) = rtp_sender.read(&mut rtcp_buf).await {}
         Result::<()>::Ok(())
     });
