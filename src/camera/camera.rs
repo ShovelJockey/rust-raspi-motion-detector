@@ -61,6 +61,7 @@ pub fn start_stream_rtp() -> u32 {
         "-n",
         "--inline",
         "--listen",
+        "--low-latency",
         "--libav-format",
         "h264",
         "-o",
@@ -70,7 +71,6 @@ pub fn start_stream_rtp() -> u32 {
     let camera_process = Command::new("rpicam-vid")
         .args(command_args)
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
         .spawn()
         .expect("Expected Camera command to succeed without error.");
     let camera_process_id = camera_process.id();
@@ -91,8 +91,6 @@ pub fn start_stream_rtp() -> u32 {
     Command::new("ffmpeg")
         .args(ffmpeg_args)
         .stdin(Stdio::from(camera_process.stdout.unwrap()))
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
         .spawn()
         .expect("FFMPEG video processing process completed successfully.");
 

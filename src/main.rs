@@ -1,15 +1,17 @@
 use crate::motion_detect::gpio::MotionDetector;
+use crate::streaming::turn;
 use axum_server::tls_rustls::RustlsConfig;
 use dotenvy::dotenv;
-use std::{env::var, fs::File, io::stdout, net::SocketAddr, path::PathBuf};
+use std::{io::stdout, net::SocketAddr, path::PathBuf};
 use tokio;
 use tokio_rustls::rustls;
 use tracing::info;
-use tracing_subscriber::{fmt::layer, prelude::*, registry};
+use tracing_subscriber::{fmt::layer, prelude::*, registry, filter::LevelFilter};
 
 pub mod app;
 mod camera;
 pub mod motion_detect;
+mod streaming;
 
 #[tokio::main]
 async fn main() {
@@ -19,12 +21,7 @@ async fn main() {
         .install_default()
         .unwrap();
 
-    // let file_dir = var("LOG_PATH").unwrap_or("/log.logfile".to_string());
-    // let log_file = match File::create_new(&file_dir) {
-    //     Ok(file) => file,
-    //     Err(_) => File::open(&file_dir).expect("Open already existing file"),
-    // };
-    let trace_layer = layer().pretty().with_writer(stdout);
+    let trace_layer = layer().pretty().with_writer(stdout).with_filter(LevelFilter::DEBUG);
     registry().with(trace_layer).init();
 
     let motion_detector = MotionDetector::new(4);
@@ -42,6 +39,10 @@ async fn main() {
     )
     .await
     .expect("Valid https certs");
+
+    let _turn_server = turn::create_turn_server()
+        .await
+        .expect("turn server starts successfully");
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3001));
     info!("started");

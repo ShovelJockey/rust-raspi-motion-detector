@@ -13,6 +13,7 @@
     <div id="div"></div>
 
     <script type="module">
+        import { SERVER_ADDR } from "/static/config.js";
         let socket;
         let pc;
 
@@ -42,23 +43,23 @@
             await cleanupConnections();
         });
 
-        socket = await createWebSocket("wss://192.168.0.252:3001/ws");
+        socket = await createWebSocket("wss://86.26.33.152:3001/ws").catch(error => {
+            console.error("Failed to connect to websocket:", error)
+        });
         
         socket.addEventListener("open", (event) => {
             console.log("Connection established");
             socket.send("Initial data");
         });
         
-        let turn_config;
-        fetch("https://192.168.0.252/turn_config")
-            .then(response => response.json())
-            .then(data => {
-                console.log(data);
-                turn_config = data;
-            })
-            .catch(error => {
-                console.error("Error fetching data:", error);
-            })
+        const response = await fetch(`${SERVER_ADDR}/turn_config`).catch(error => {
+            console.error("Error fetching turn config:", error);
+        });
+
+        const turn_config = await response.json();
+        console.log(`turn urls: ${turn_config.urls}`)
+        console.log(`turn user: ${turn_config.username}`)
+        console.log(`turn password: ${turn_config.password}`)
         
         pc = new RTCPeerConnection({
             iceServers: [

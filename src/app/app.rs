@@ -1,6 +1,6 @@
 use crate::app::{middleware, routes, task::ThreadPool, web_routes};
-use crate::camera::webrtc::ws_handler;
 use crate::motion_detect::gpio::MotionDetector;
+use crate::streaming::webrtc::{WebrtcState, ws_handler};
 use axum::{
     handler::HandlerWithoutStateExt,
     http::{uri::Authority, StatusCode, Uri},
@@ -11,11 +11,12 @@ use axum::{
 };
 use axum_extra::extract::Host;
 use std::{net::SocketAddr, sync::Arc};
-use tower_http::{services::ServeDir};
+use tower_http::services::ServeDir;
 
 pub async fn create_app(motion_detector: MotionDetector) -> Router {
     let thread_pool = ThreadPool::new(20).await;
     let session_store = middleware::build_session_layer().await;
+    let webrtc_state = WebrtcState::new();
 
     let app = Router::new()
         .route("/start_cam", post(routes::init_camera))
@@ -40,6 +41,7 @@ pub async fn create_app(motion_detector: MotionDetector) -> Router {
         .route("/login", get(web_routes::login))
         .layer(session_store)
         .route("/ws", get(ws_handler))
+        .with_state(Arc::new(webrtc_state))
         .nest_service(
             "/static",
             ServeDir::new("/home/jamie/coding/rust-raspi-motion-detector/frontend/static"),

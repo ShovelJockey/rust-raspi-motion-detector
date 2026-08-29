@@ -300,25 +300,23 @@ pub async fn download_from_task(thread_pool: State<Arc<ThreadPool>>) -> Response
 }
 
 pub async fn get_turn_config() -> Response {
-    let urls = var("TURN_URLS");
+    let urls = var("TURN_URL");
     let username = var("TURN_USER");
     let password = var("TURN_PASS");
     if urls.is_err() || username.is_err() || password.is_err() {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             "Error retrieving turn config",
-        ).into_response()
+        )
+            .into_response();
     }
 
     let urls = urls.unwrap().split(",").map(|s| s.to_string()).collect();
-    
+
     let turnconfig = TurnConfig {
         urls: urls,
         username: username.unwrap(),
-        password: password.unwrap()
+        password: password.unwrap(),
     };
-    return  (
-        StatusCode::OK,
-        to_string(&turnconfig).unwrap()
-    ).into_response();
+    return (StatusCode::OK, to_string(&turnconfig).unwrap()).into_response();
 }
