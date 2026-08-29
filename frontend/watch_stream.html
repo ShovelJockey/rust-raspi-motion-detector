@@ -43,7 +43,9 @@
             await cleanupConnections();
         });
 
-        socket = await createWebSocket("wss://192.168.0.252:3001/ws");
+        socket = await createWebSocket("wss://86.26.33.152:3001/ws").catch(error => {
+            console.error("Failed to connect to websocket:", error)
+        });
         
         socket.addEventListener("open", (event) => {
             console.log("Connection established");
@@ -55,6 +57,9 @@
         });
 
         const turn_config = await response.json();
+        console.log(`turn urls: ${turn_config.urls}`)
+        console.log(`turn user: ${turn_config.username}`)
+        console.log(`turn password: ${turn_config.password}`)
         
         pc = new RTCPeerConnection({
             iceServers: [
