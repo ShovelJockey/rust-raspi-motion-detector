@@ -7,7 +7,7 @@ use std::{
     sync::Arc,
 };
 use tokio::{net::UdpSocket, time::Duration};
-use turn::auth::AuthHandler;
+use turn::auth::{AuthHandler};
 use turn::relay::relay_static::*;
 use turn::server::{
     config::{ConnConfig, ServerConfig},
@@ -69,7 +69,7 @@ pub async fn create_turn_server() -> Result<Server, Error> {
         conn_configs: vec![conn_config],
         realm: public_ip,
         auth_handler,
-        channel_bind_timeout: Duration::from_secs(0),
+        channel_bind_timeout: Duration::from_secs(10),
         alloc_close_notify: None,
     };
 

@@ -77,9 +77,11 @@ impl WebrtcState {
 
     fn create_video_task(&self) -> JoinHandle<()> {
         let task_track = self.video_track.clone();
+        debug!("start video task");
         spawn(async move {
-            let mut inbound_rtp_packet = BytesMut::with_capacity(1500); // UDP MTU
+            let mut inbound_rtp_packet = BytesMut::zeroed(1500);
             let udp_socket = UdpSocket::bind("127.0.0.1:5004").await.unwrap();
+            debug!("bound socket");
             while let Ok((n, _)) = udp_socket.recv_from(&mut inbound_rtp_packet).await {
                 debug!("packet length: {n}");
                 if let Err(err) = task_track.write(&inbound_rtp_packet[..n]).await {
@@ -155,10 +157,8 @@ async fn handle_socket(socket: WebSocket, webrtc_state: State<Arc<WebrtcState>>)
 
     let peer_conn = webrtc_state.new_peer_connection().await;
 
-    let video_track = webrtc_state.video_track.clone();
-
     let rtp_sender = peer_conn
-        .add_track(Arc::clone(&video_track) as Arc<dyn TrackLocal + Send + Sync>)
+        .add_track(Arc::clone(&webrtc_state.video_track) as Arc<dyn TrackLocal + Send + Sync>)
         .await
         .expect("add track to peer connection");
 
